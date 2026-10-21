@@ -78,7 +78,23 @@ From the shell, `qs check` prints the same status for every host (or the ones yo
 
 On terminals at least 100 columns wide, a pane beside the list shows the selected host's hostname, user, port, key, jump host and port forwards. Any value that doesn't come from the host's own block says where it does come from, such as `from Host *`, `from line 27` (another block for the same host) or `default` (ssh's built-in value). Below that are your connection history, the file and line that define the host, and the block as written. `d` hides the pane, or on narrower terminals shows it full screen. `J`/`K` scroll it.
 
-Press `?` for every key.
+Press `?` for every key. `tab` and `←`/`→` (or `1`–`4`) switch tabs.
+
+## The Discover tab
+
+Machines you could add but haven't: the machines on your tailnet (when Tailscale is installed and connected) and the hosts in `~/.ssh/known_hosts` that no Host block points at, meaning ones you've connected to by name or address. A tailnet machine counts as configured when a host's HostName is its MagicDNS name, short name or Tailscale IP, or a host's alias is its short name.
+
+To keep the list useful, quick-ssh leaves some entries out:
+
+- hashed `known_hosts` entries, which can't be read;
+- git forges such as `github.com`;
+- names on your tailnet's domain that are no longer on the tailnet;
+- phones and tablets you've never connected to (`H` shows these).
+
+- `enter` opens the new-host form filled in: alias from the machine's name, HostName, your usual `User`, and the tag `tailnet`. Save is already selected, so `enter` again adds it. From the Hosts tab, that's `2`, `enter`, `enter`. quick-ssh then switches to Hosts with the new host selected.
+- `space` selects several machines (`a` selects all) and `enter` adds them all in one save, after showing what each becomes. Clashing aliases get `-2`, and a bare address becomes `10-0-0-5`.
+- `w` opens the machine in Tailscale's admin console, and `y` copies its address.
+- `h` hides a machine (saved in `config.toml`), and `H` shows hidden ones. `/` filters by name, address or OS, and `r` reloads.
 
 ## The Keys tab
 
@@ -161,4 +177,4 @@ go test ./...
 
 ## Status
 
-quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts (the core of M3, pulled forward), and keys, copying them to hosts, and tags and notes (M4). Next: the Discover tab (M5), which is a placeholder until then.
+quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts (the core of M3, pulled forward), keys, copying them to hosts, and tags and notes (M4), and the Discover tab (M5). Next: tunnels, running a command on many hosts, and a doctor check (M6).

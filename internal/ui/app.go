@@ -88,6 +88,7 @@ type App struct {
 	w, h     int
 	tab      int
 	hosts    hostsTab
+	disc     discoverTab
 	keys     keysTab
 	settings settingsTab
 	detail   detailState
@@ -157,6 +158,7 @@ func New(o Options) *App {
 		cmdFile:   o.CmdFile,
 		st:        newStyles(true),
 		hosts:     newHostsTab(),
+		disc:      newDiscoverTab(),
 		detail:    detailState{show: true},
 		resolved:  map[string]*resolve.Resolved{},
 		backupDir: o.BackupDir,
@@ -184,7 +186,7 @@ func New(o Options) *App {
 func (a *App) Outcome() Outcome { return a.outcome }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch(), a.loadTailscale(), a.checkTick(), a.loadKeys())
+	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch(), a.loadTailscale(), a.checkTick(), a.loadKeys(), a.loadKnownHosts())
 }
 
 // loadSSH (re)reads the ssh config and rebuilds the host list. Resolved
@@ -293,7 +295,10 @@ func (a *App) notify(kind int, format string, args ...any) tea.Cmd {
 }
 
 // refresh rebuilds the visible host list from the current state.
-func (a *App) refresh() { a.hosts.refresh(a.cfg, a.hist, a.state) }
+func (a *App) refresh() {
+	a.hosts.refresh(a.cfg, a.hist, a.state)
+	a.refreshDiscover()
+}
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -324,8 +329,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.resolved[config.HostKey(msg.alias)] = msg.res
 		if !a.resolving() {
+			a.refreshDiscover()
 			return a, a.checkAll() // every host has an address now
 		}
+		return a, nil
+
+	case knownHostsMsg:
+		a.handleKnownHosts(msg)
 		return a, nil
 
 	case reachMsg:
@@ -449,7 +459,7 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			f.Blur()
 			a.refresh()
 			// Enter in the filter connects when it narrowed things to one host.
-			if len(a.hosts.hostRows()) == 1 {
+			if a.tab == tabHosts && len(a.hosts.hostRows()) == 1 {
 				return a.connectSelected()
 			}
 			return nil
@@ -470,9 +480,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "?":
 		a.help, a.helpScroll = true, 0
 		return nil
-	case "tab":
+	case "tab", "right":
 		return a.setTab((a.tab + 1) % len(tabNames))
-	case "shift+tab":
+	case "shift+tab", "left":
 		return a.setTab((a.tab + len(tabNames) - 1) % len(tabNames))
 	case "1", "2", "3", "4":
 		return a.setTab(int(key[0] - '1'))
@@ -494,6 +504,10 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			a.detail.full = false
 			return nil
 		}
+		if a.tab == tabDiscover && len(a.disc.selected) > 0 {
+			a.disc.selected = map[string]bool{}
+			return nil
+		}
 		if a.hosts.clearSelection() {
 			return nil
 		}
@@ -502,6 +516,8 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch a.tab {
 	case tabHosts:
 		return a.hostsKey(key)
+	case tabDiscover:
+		return a.discoverKey(key)
 	case tabKeys:
 		return a.keysKey(key)
 	case tabSettings:
@@ -512,8 +528,11 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 
 // activeFilter is the filter input of the current tab, if it has one.
 func (a *App) activeFilter() *textinput.Model {
-	if a.tab == tabHosts {
+	switch a.tab {
+	case tabHosts:
 		return &a.hosts.filter
+	case tabDiscover:
+		return &a.disc.filter
 	}
 	return nil
 }
@@ -532,8 +551,11 @@ func (a *App) updateFilter(msg tea.Msg) tea.Cmd {
 // while quick-ssh was running.
 func (a *App) setTab(tab int) tea.Cmd {
 	a.tab = tab
-	if tab == tabKeys {
+	switch tab {
+	case tabKeys:
 		return a.loadKeys() // keys made or loaded outside quick-ssh
+	case tabDiscover:
+		return tea.Batch(a.loadKnownHosts(), a.loadTailscale()) // machines joined or connected to since
 	}
 	if tab != tabSettings {
 		return nil
@@ -585,9 +607,7 @@ func (a *App) render() string {
 	case tabHosts:
 		body = a.renderHostsBody(bodyH)
 	case tabDiscover:
-		body = a.renderComingSoon("Discover",
-			"Tailnet devices and known_hosts entries that aren't in your ssh config yet,",
-			"ready to add with a key press. Coming in milestone M5.")
+		body = a.renderDiscover(bodyH)
 	case tabKeys:
 		body = a.renderKeys(bodyH)
 	case tabSettings:
@@ -627,14 +647,6 @@ func (a *App) render() string {
 	).Render()
 }
 
-func (a *App) renderComingSoon(title string, lines ...string) string {
-	out := []string{"", "  " + a.st.boxTitle.Render(title), ""}
-	for _, l := range lines {
-		out = append(out, "  "+a.st.dim.Render(l))
-	}
-	return strings.Join(out, "\n")
-}
-
 func padLines(s string, h, w int) string {
 	lines := strings.Split(s, "\n")
 	if len(lines) > h {
@@ -652,6 +664,9 @@ func padLines(s string, h, w int) string {
 func (a *App) renderHeader() string {
 	logo := a.st.logo.Render(" ◆ quick-ssh ")
 	counts := []string{fmt.Sprintf("%d", len(a.ssh.Hosts)-a.hosts.hiddenCount()), "", "", ""}
+	if a.disc.loaded && len(a.disc.view) > 0 {
+		counts[tabDiscover] = fmt.Sprintf("%d", len(a.disc.view))
+	}
 	if a.keys.loaded {
 		counts[tabKeys] = fmt.Sprintf("%d", len(a.keys.list))
 	}

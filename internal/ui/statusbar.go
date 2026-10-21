@@ -300,7 +300,11 @@ func (a *App) barSummary() segment {
 			}
 		}
 	}
-	if n := len(a.hosts.selected); n > 0 {
+	n := len(a.hosts.selected)
+	if a.tab == tabDiscover {
+		n = len(a.disc.selected)
+	}
+	if n > 0 {
 		if len(parts) > 0 {
 			parts = append(parts, part{text: " ", fg: st.text})
 		}
@@ -319,8 +323,16 @@ func (a *App) barSummary() segment {
 }
 
 func (a *App) barPosition() segment {
-	if a.tab != tabHosts || len(a.hosts.view) == 0 {
+	cur, n := a.hosts.cursor, len(a.hosts.view)
+	switch a.tab {
+	case tabHosts:
+	case tabDiscover:
+		cur, n = a.disc.cursor, len(a.disc.view)
+	default:
 		return segment{}
 	}
-	return seg(a.st.barMid, part{text: fmt.Sprintf("%d/%d", a.hosts.cursor+1, len(a.hosts.view)), fg: a.st.text, bold: true})
+	if n == 0 {
+		return segment{}
+	}
+	return seg(a.st.barMid, part{text: fmt.Sprintf("%d/%d", cur+1, n), fg: a.st.text, bold: true})
 }

@@ -8,7 +8,7 @@ qs oak            # connect straight away (exact or unique fuzzy match), else op
 qs -              # reconnect to the last host
 ```
 
-This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1, M2 and M4 done; M3's new, edit and delete done early (`qs add` still to come).**
+This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1, M2, M4 and M5 done; M3's new, edit and delete done early (`qs add` still to come).**
 
 ## 1. Goals and non-goals
 
@@ -330,3 +330,6 @@ Made while building:
 21. **Copying a key runs in the terminal** (like `stay_open` sessions) so ssh can ask for passwords, one host after another under a heading each, and waits for enter only if one failed. The key goes in by its base64 blob, so a copy with another comment counts as already there. Linux and macOS get an `sh -c` script with the key as an argument (safe under bash, zsh and fish, with `umask 077`, a newline fix and `restorecon`); Windows gets PowerShell as `-EncodedCommand`, which needs no quoting under cmd.exe or PowerShell, and picks `administrators_authorized_keys` (with its required ACL) for members of Administrators. Which one a host gets comes from Tailscale's OS, and `w` in the confirmation overrides it. Each host's login is checked afterwards.
 22. **`C` from the Keys tab picks hosts on the Hosts tab** (a banner, `space` to select, `C` to copy) rather than in a popup list, so filtering and selection work as usual.
 23. **Metadata is edited in the host form**, below the ssh fields, and saved to `config.toml` only; a form that changes only metadata never touches the ssh config. Renaming a host moves its metadata and deleting the host drops it. Tags are lowercase and filter with `/#tag`.
+24. **Discover adds through the host form**, opened filled in with Save focused, so a machine is added with `2`, `enter`, `enter` and every value can still be changed first. Several selected machines are added in one save after a confirmation listing what each becomes. Either way you land on the Hosts tab with the new host selected. Added tailnet machines get the tag `tailnet`; the suggested User is the one most of your hosts use (left empty when it's your local user).
+25. **What Discover leaves out:** tailnet machines already configured (HostName is a MagicDNS name, short name or Tailscale IP, or the alias is the short name), this machine, hashed and wildcard `known_hosts` entries, git forges, names on the tailnet's domain that are no longer peers (machines removed from the tailnet), and phones and tablets never connected to (shown with `H`). A `known_hosts` entry for a peer's name or IP is folded into that peer, and lines sharing a name are one machine.
+26. **`←`/`→` switch tabs** everywhere a text field isn't focused (the forms keep them for the cursor and the key type).

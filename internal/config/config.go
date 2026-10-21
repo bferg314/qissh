@@ -86,6 +86,9 @@ type Config struct {
 	// host aliases.
 	Pinned []string `toml:"pinned"`
 	Hidden []string `toml:"hidden"`
+	// DiscoverHidden are devices hidden on the Discover tab, by their key
+	// ("tailnet:oak.example.ts.net", "known:box.lan").
+	DiscoverHidden []string `toml:"discover_hidden,omitempty"`
 	// Hosts holds tags, notes and a web page per host, keyed by alias.
 	Hosts map[string]*HostMeta `toml:"hosts,omitempty"`
 	Tools []Tool               `toml:"tools"`

@@ -47,6 +47,8 @@ type hostForm struct {
 	focus    int
 	err      string
 	saving   bool
+	// from says where a new host was discovered ("tailnet").
+	from string
 	// confirmDelete asks y/n before deleting.
 	confirmDelete bool
 }
@@ -60,8 +62,11 @@ type savedMsg struct {
 	alias, oldAlias string
 	deleted         bool
 	meta            config.HostMeta
-	backup          string
-	err             error
+	// added lists every host when several were added at once; tagged are
+	// the ones to tag "tailnet".
+	added, tagged []string
+	backup        string
+	err           error
 }
 
 func (a *App) openForm(h *sshconfig.Host) tea.Cmd {
@@ -294,7 +299,9 @@ func (a *App) mainFile() *sshconfig.File {
 // writeFile saves file in the background, checking it with
 // `ssh -F <file> -G <probe>` first.
 func (a *App) writeFile(file *sshconfig.File, done savedMsg, probe string) tea.Cmd {
-	a.form.saving = true
+	if a.form != nil {
+		a.form.saving = true
+	}
 	runner, opts := a.runner, a.sshOptions()
 	validate := func(path string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -358,8 +365,22 @@ func (a *App) handleSaved(msg savedMsg) tea.Cmd {
 		a.cfg.SetMeta(msg.alias, msg.meta)
 		cmds = append(cmds, a.saveConfig())
 	}
+	for _, alias := range msg.tagged {
+		a.cfg.SetMeta(alias, config.HostMeta{Tags: []string{"tailnet"}})
+	}
+	if len(msg.tagged) > 0 {
+		cmds = append(cmds, a.saveConfig())
+	}
 	a.loadSSH()
+	if a.tab == tabDiscover && !msg.deleted {
+		// Added from Discover: show it on Hosts, ready to connect.
+		a.tab = tabHosts
+		a.disc.selected = map[string]bool{}
+	}
 	a.hosts.focus(msg.alias)
+	if len(msg.added) > 1 {
+		return tea.Batch(append(cmds, a.resolveAll(), a.notify(1, "Added %s", joinAliases(msg.added)))...)
+	}
 	verb := "Saved"
 	switch {
 	case msg.deleted:
@@ -393,6 +414,11 @@ func (a *App) renderForm() string {
 		}
 	} else {
 		lines = append(lines, st.dim.Render("Added to "+config.TildePath(a.ssh.Path)))
+		if f.from != "" {
+			title = "Add " + f.inputs[fHostName].Value()
+			lines[0] = st.bold.Render(title)
+			lines = append(lines, st.dim.Render("Found in "+f.from+". enter on Save adds it."))
+		}
 	}
 	lines = append(lines, "")
 

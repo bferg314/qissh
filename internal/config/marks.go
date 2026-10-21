@@ -49,3 +49,8 @@ func setMark(list []string, alias string, on bool) []string {
 	}
 	return out
 }
+
+// SetDiscoverHidden hides or shows a device on the Discover tab.
+func (c *Config) SetDiscoverHidden(key string, on bool) {
+	c.DiscoverHidden = setMark(c.DiscoverHidden, key, on)
+}
