@@ -7,6 +7,7 @@ qs                # the dashboard
 qs oak            # connect: an exact alias, or the only fuzzy match ("qs gar" → garage-pi)
 qs -              # reconnect to the last host
 qs ls             # list hosts (--json, --names)
+qs check          # which hosts are up (--login also tries logging in)
 ```
 
 quick-ssh runs your own `ssh`, so the session is exactly what `ssh <alias>` gives you: agents, `ProxyJump`, `ControlMaster` and everything else in your config keep working. Your ssh config stays the source of truth.
@@ -54,6 +55,19 @@ Every save is checked first. quick-ssh writes the new file next to the old one a
 - `s` sorts by most used, name or file order. `r` reloads.
 - Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), `f` starts `sftp`, and `M` starts `mosh` when it's installed.
 
+### Is it up?
+
+The **STATUS** column shows each host as `● 12ms` (up, with the time to connect), `○ refused` / `○ timeout` / `○ no dns` (down), or `◌` while it's being checked. quick-ssh checks every host when it starts and every 60 seconds while it's open (change that under **Check every** in Settings). It never logs in to do this: it only opens a TCP connection to the ssh port and closes it again.
+
+- **Tailscale:** if `tailscale` is installed and connected, hosts whose HostName is a tailnet machine (by MagicDNS name, short name or Tailscale IP) use Tailscale's view, so a machine that's off shows `○ off 3d` (last seen 3 days ago) rather than timing out. The detail pane adds its OS.
+- **Jump hosts:** a host reached through `ProxyJump` can't be checked directly, so it shows its first jump host's state as `● via elm`.
+- **Login check (`t`):** tries to log in to the selected host, or every selected host, with keys only and a short timeout, and runs `exit 0`. It never stops at a password or passphrase prompt. The result goes in the detail pane: login works, needs a password or passphrase, host key not known yet, host key changed, refused, timed out, or doesn't resolve.
+- **Host keys:** when the login check finds a host key that changed (`▲ host key!`) or that isn't known yet, it shows the fingerprint `known_hosts` has next to the one the host presents now, with a warning if the key changed. `y` trusts the new key: `ssh-keygen -R` removes the old one (keeping `known_hosts.old`) and exactly the key you were shown is added. To see the key, quick-ssh connects using a throwaway known_hosts file, so nothing is trusted until you say so.
+
+`s` can also sort by status, with hosts that are up first (fastest first). The status bar counts how many hosts are up and down.
+
+From the shell, `qs check` prints the same status for every host (or the ones you name) and exits with status 1 if any are down. `qs check --login` adds the login check.
+
 `Host *`, other pattern blocks and `Match` blocks are listed under **Defaults & rules** at the bottom. `enter` on one opens it in your editor.
 
 ### Detail pane
@@ -84,6 +98,9 @@ ssh_config = "~/.ssh/config"   # another file is passed to ssh with -F
 alias_name = "qs"
 connect_mode = "auto"           # auto | in_place | zellij | wt | shell
 stay_open = false
+check_interval = "60s"          # "0" checks only at start and on r
+check_timeout = "2s"
+tailscale = true
 pinned = ["oak"]                # set with * on the Hosts tab
 hidden = []                     # set with h
 
@@ -117,4 +134,4 @@ go test ./...
 
 ## Status
 
-quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1) and adding, editing and deleting hosts (the core of M3, pulled forward). Next: showing which hosts are up, a login check and a fix for changed host keys (M2). The Discover and Keys tabs are placeholders until M5 and M4.
+quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), and adding, editing and deleting hosts (the core of M3, pulled forward). Next: the Keys tab (M4). The Discover and Keys tabs are placeholders until M5 and M4.

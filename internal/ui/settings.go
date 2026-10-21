@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -21,6 +22,7 @@ type settingItem struct {
 	on      *bool
 	warn    string
 	tool    *config.Tool // set for tool rows
+	refresh bool         // changing it re-checks the hosts
 
 	// Action rows have no checkbox (on == nil): enter/space runs set.
 	set func() tea.Cmd
@@ -65,7 +67,24 @@ func (a *App) settingItems() []settingItem {
 		shellInt.warn = "not set up"
 	}
 
+	interval := settingItem{section: "Status", label: "Check every", detail: intervalText(a.cfg.CheckInterval) + " · enter changes",
+		set: func() tea.Cmd {
+			i := slices.Index(config.CheckIntervals, a.cfg.CheckInterval)
+			a.cfg.CheckInterval = config.CheckIntervals[(i+1)%len(config.CheckIntervals)]
+			return tea.Batch(a.saveConfig(), a.checkTick())
+		}}
+	ts := settingItem{section: "Status", label: "Tailscale", on: &a.cfg.Tailscale,
+		detail: "online state and last seen for hosts on your tailnet", refresh: true}
+	switch {
+	case !config.Available("tailscale"):
+		ts.warn = "not installed"
+	case a.checks.tsErr != nil:
+		ts.warn = a.checks.tsErr.Error()
+	case a.cfg.Tailscale:
+		ts.detail += fmt.Sprintf(" · %d machines", len(a.checks.peers))
+	}
 	items := []settingItem{sshCfg, mode, stay, shellInt}
+	items = append(items, interval, ts)
 	for i := range a.cfg.Tools {
 		t := &a.cfg.Tools[i]
 		it := settingItem{
@@ -108,6 +127,9 @@ func (a *App) settingsKey(key string) tea.Cmd {
 		*it.on = !*it.on
 		if it.tool != nil {
 			it.tool.AutoDisabled = false // a hand-made choice sticks
+		}
+		if it.refresh {
+			return tea.Batch(a.saveConfig(), a.recheck())
 		}
 		return a.saveConfig()
 	}
@@ -161,4 +183,11 @@ func (a *App) renderSettings(h int) string {
 		lines = lines[start : start+h]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func intervalText(s string) string {
+	if s == "0" {
+		return "only at start and on r"
+	}
+	return "every " + s + " while quick-ssh is open"
 }

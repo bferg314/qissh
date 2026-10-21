@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -71,6 +72,13 @@ type Config struct {
 	// StayOpen returns to the list after an in-place session ends,
 	// instead of quitting.
 	StayOpen bool `toml:"stay_open"`
+	// CheckInterval is how often hosts are re-checked while the dashboard
+	// is open ("60s"); "0" checks only at start and on r.
+	CheckInterval string `toml:"check_interval"`
+	// CheckTimeout is how long a reachability check waits ("2s").
+	CheckTimeout string `toml:"check_timeout"`
+	// Tailscale uses `tailscale status` for hosts on your tailnet.
+	Tailscale bool `toml:"tailscale"`
 	// Powerline draws the status bar with arrow separators, which need a
 	// Nerd Font or Powerline-patched font.
 	Powerline bool `toml:"powerline"`
@@ -126,6 +134,12 @@ func (c *Config) fill() {
 	if !slices.Contains(ConnectModes, c.ConnectMode) {
 		c.ConnectMode = d.ConnectMode
 	}
+	if _, err := time.ParseDuration(c.CheckInterval); err != nil && c.CheckInterval != "0" {
+		c.CheckInterval = d.CheckInterval
+	}
+	if t, err := time.ParseDuration(c.CheckTimeout); err != nil || t <= 0 {
+		c.CheckTimeout = d.CheckTimeout
+	}
 }
 
 // Save writes the config to path, creating parent directories as needed.
@@ -178,10 +192,13 @@ func (c *Config) EnableInstalled() []string {
 // Default returns the built-in configuration.
 func Default() *Config {
 	return &Config{
-		Version:     configVersion,
-		SSHConfig:   DefaultSSHConfig,
-		AliasName:   "qs",
-		ConnectMode: ConnectAuto,
+		Version:       configVersion,
+		SSHConfig:     DefaultSSHConfig,
+		AliasName:     "qs",
+		ConnectMode:   ConnectAuto,
+		CheckInterval: "60s",
+		CheckTimeout:  "2s",
+		Tailscale:     true,
 		Tools: []Tool{
 			{Name: "VS Code", Cmd: "code", Args: []string{"--remote", "ssh-remote+{alias}", "{home}"}, Key: "o", Mode: ModeDetach},
 			{Name: "SFTP", Cmd: "sftp", Args: []string{"{alias}"}, Key: "f", Mode: ModeTerminal},
@@ -189,3 +206,20 @@ func Default() *Config {
 		},
 	}
 }
+
+// Interval is CheckInterval as a duration; 0 means no repeat checks.
+func (c *Config) Interval() time.Duration {
+	d, _ := time.ParseDuration(c.CheckInterval)
+	return max(0, d)
+}
+
+// Timeout is CheckTimeout as a duration.
+func (c *Config) Timeout() time.Duration {
+	if d, err := time.ParseDuration(c.CheckTimeout); err == nil && d > 0 {
+		return d
+	}
+	return 2 * time.Second
+}
+
+// CheckIntervals are the choices Settings cycles through.
+var CheckIntervals = []string{"30s", "60s", "5m", "0"}

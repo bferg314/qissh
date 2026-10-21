@@ -8,7 +8,7 @@ qs oak            # connect straight away (exact or unique fuzzy match), else op
 qs -              # reconnect to the last host
 ```
 
-This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0 and M1 done; M3's new, edit and delete done early (`qs add` still to come).**
+This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1 and M2 done; M3's new, edit and delete done early (`qs add` still to come).**
 
 ## 1. Goals and non-goals
 
@@ -321,3 +321,7 @@ Made while building:
 12. **`ssh` is whatever is first on PATH**, as in your shell. Under Git Bash on Windows that's Git's OpenSSH; under PowerShell it's Windows' own. quick-ssh doesn't pick one.
 13. **Editing is pulled forward from M3.** `n` and `e` open one form (alias, HostName, User, Port, IdentityFile, ProxyJump); `e` replaces the planned duplicate-on-`c`, and delete lives in the edit form (with a y/n confirm, since every save is backed up) instead of on `D`. Options the form doesn't manage are left in the block untouched.
 14. **New lines follow the file's style.** Keyword case (lowercase or `HostName`) comes from the block being edited, or from the whole file for a new block; indent from the block's first option; line endings from the file.
+15. **Tailscale and the TCP check combine.** A tailnet machine that's offline shows Tailscale's "off 3d"; one that's online is still dialled, since being on the tailnet doesn't mean sshd is listening. Peers match by MagicDNS name, short name or Tailscale IP, never by Tailscale's HostName (phones report "localhost").
+16. **Login checks run `exit 0`**, which works in sh, cmd and PowerShell, and any exit status other than ssh's own 255 counts as a working login. They use `BatchMode=yes`, `ConnectTimeout=8` and a 20 s hard limit, and run with no terminal (a new session on Unix, no console on Windows), because BatchMode isn't passed on to a ProxyJump's inner ssh.
+17. **Host keys are fetched with a throwaway known_hosts** (`StrictHostKeyChecking=accept-new` into a temp file), so the key goes through ProxyJump like a real connection. Trusting appends exactly the lines ssh wrote for the key that was shown, rather than accepting whatever the host presents on the next connect.
+18. **`qs check` has `--login`** rather than always logging in, so the default is safe to run from a prompt or cron.

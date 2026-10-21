@@ -162,6 +162,7 @@ func (a *App) renderDetail(w, h int, border bool) string {
 			add(a.targetCell(h))
 		}
 		lines = &body
+		a.appendStatus(h, add, section)
 		if res != nil && res.Err == nil {
 			a.appendConnection(h, res, add, section)
 		}

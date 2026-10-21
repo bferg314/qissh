@@ -45,6 +45,8 @@ func main() {
   quick-ssh -                 reconnect to the last host
   quick-ssh ls [--json|--names]
                               list hosts
+  quick-ssh check [--login] [host...]
+                              which hosts are up (exit status 1 if any are down)
   quick-ssh init <shell>      print shell integration (%s), which defines qs
 
 Flags:
@@ -61,6 +63,8 @@ Flags:
 		err = runInit(flag.Arg(1))
 	case flag.Arg(0) == "ls":
 		err = runLs(flag.Args()[1:])
+	case flag.Arg(0) == "check":
+		err = runCheck(flag.Args()[1:])
 	case flag.NArg() > 1:
 		flag.Usage()
 		os.Exit(2)

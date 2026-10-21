@@ -55,6 +55,10 @@ func (f *fakeRunner) Output(_ context.Context, name string, args ...string) ([]b
 	return []byte("hostname " + alias + ".lan\nport 22\n"), nil
 }
 
+func (f *fakeRunner) Combined(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return f.Output(ctx, name, args...)
+}
+
 func TestAll(t *testing.T) {
 	f := &fakeRunner{}
 	var mu sync.Mutex

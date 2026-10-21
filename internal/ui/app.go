@@ -46,7 +46,7 @@ const watchInterval = 2 * time.Second
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "s": true, "m": true, "d": true, "y": true,
 	"j": true, "k": true, "J": true, "K": true, "1": true, "2": true, "3": true, "4": true,
-	"*": true, "h": true, "H": true, "E": true, "e": true, "n": true, "a": true, "space": true, "enter": true,
+	"*": true, "h": true, "H": true, "E": true, "e": true, "n": true, "t": true, "a": true, "space": true, "enter": true,
 }
 
 // Options are what main hands the app.
@@ -93,6 +93,7 @@ type App struct {
 	resGen   int
 	sem      chan struct{}
 	mtimes   map[string]time.Time
+	checks   checks
 
 	spin       spinner.Model
 	spinning   bool
@@ -149,6 +150,7 @@ func New(o Options) *App {
 		detail:    detailState{show: true},
 		resolved:  map[string]*resolve.Resolved{},
 		backupDir: o.BackupDir,
+		checks:    newChecks(),
 		sem:       make(chan struct{}, resolveWorkers),
 	}
 	if a.backupDir == "" {
@@ -168,7 +170,7 @@ func New(o Options) *App {
 func (a *App) Outcome() Outcome { return a.outcome }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch())
+	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch(), a.loadTailscale(), a.checkTick())
 }
 
 // loadSSH (re)reads the ssh config and rebuilds the host list. Resolved
@@ -256,7 +258,9 @@ func (a *App) resolving() bool {
 	return false
 }
 
-func (a *App) busy() bool { return a.resolving() || a.form != nil && a.form.saving }
+func (a *App) busy() bool {
+	return a.resolving() || a.form != nil && a.form.saving || len(a.checks.probing) > 0
+}
 
 func (a *App) startSpinner() tea.Cmd {
 	if a.spinning {
@@ -275,7 +279,7 @@ func (a *App) notify(kind int, format string, args ...any) tea.Cmd {
 }
 
 // refresh rebuilds the visible host list from the current state.
-func (a *App) refresh() { a.hosts.refresh(a.cfg, a.hist) }
+func (a *App) refresh() { a.hosts.refresh(a.cfg, a.hist, a.state) }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -301,10 +305,37 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleSaved(msg)
 
 	case resolvedMsg:
-		if msg.gen == a.resGen {
-			a.resolved[config.HostKey(msg.alias)] = msg.res
+		if msg.gen != a.resGen {
+			return a, nil
+		}
+		a.resolved[config.HostKey(msg.alias)] = msg.res
+		if !a.resolving() {
+			return a, a.checkAll() // every host has an address now
 		}
 		return a, nil
+
+	case reachMsg:
+		if msg.gen == a.checks.gen {
+			a.checks.reach[config.HostKey(msg.alias)] = msg.reach
+			if a.hosts.sort == sortStatus {
+				a.refresh()
+			}
+		}
+		return a, nil
+
+	case tailscaleMsg:
+		a.checks.peers, a.checks.tsErr = msg.peers, msg.err
+		a.refresh()
+		return a, nil
+
+	case checkTickMsg:
+		return a, tea.Batch(a.recheck(), a.checkTick())
+
+	case loginMsg:
+		return a, a.handleLogin(msg)
+
+	case trustMsg:
+		return a, a.handleTrust(msg)
 
 	case watchMsg:
 		if a.changedOnDisk() {

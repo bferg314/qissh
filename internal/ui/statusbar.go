@@ -274,18 +274,32 @@ func (a *App) barActivity() segment {
 		icon := [...]string{"•", "✓", "✗"}[a.toast.kind]
 		return seg(bg, part{text: icon + " " + a.toast.text, fg: st.accentFg, bold: true})
 	}
-	if a.resolving() {
+	switch {
+	case a.resolving():
 		return seg(st.barMid, part{text: a.spin.View(), fg: st.accent}, part{text: " reading config", fg: st.text})
+	case len(a.checks.probing) > 0:
+		return seg(st.barMid, part{text: a.spin.View(), fg: st.accent}, part{text: fmt.Sprintf(" checking %d %s", len(a.checks.probing), plural(len(a.checks.probing), "login", "logins")), fg: st.text})
 	}
 	return segment{}
 }
 
-// barSummary counts the selection, and warns about Includes that couldn't
-// be read.
+// barSummary counts hosts up and down and the selection, and warns about
+// Includes that couldn't be read.
 func (a *App) barSummary() segment {
 	st := a.st
 	var parts []part
+	if a.tab == tabHosts {
+		if up, down := a.counts(); up+down > 0 {
+			parts = append(parts, part{text: fmt.Sprintf("●%d up", up), fg: st.green})
+			if down > 0 {
+				parts = append(parts, part{text: fmt.Sprintf(" ○%d down", down), fg: st.red})
+			}
+		}
+	}
 	if n := len(a.hosts.selected); n > 0 {
+		if len(parts) > 0 {
+			parts = append(parts, part{text: " ", fg: st.text})
+		}
 		parts = append(parts, part{text: fmt.Sprintf("✓%d selected", n), fg: st.green})
 	}
 	if n := len(a.ssh.Warnings); n > 0 {

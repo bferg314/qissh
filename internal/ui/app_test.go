@@ -35,10 +35,35 @@ Host *
     ServerAliveInterval 30
 `
 
-// fakeRunner answers `ssh -G` from the host's alias.
-type fakeRunner struct{}
+// fakeRunner plays ssh (-G, login checks, host key scans), ssh-keygen and
+// tailscale.
+type fakeRunner struct {
+	// logins is what a login check on each alias prints; a missing alias
+	// logs in fine.
+	logins map[string]string
+	// knownHosts is reported as every host's UserKnownHostsFile.
+	knownHosts string
+	tailscale  string // `tailscale status --json`
+	calls      *[]string
+}
 
-func (fakeRunner) Output(_ context.Context, _ string, args ...string) ([]byte, error) {
+func (f fakeRunner) Output(_ context.Context, name string, args ...string) ([]byte, error) {
+	if f.calls != nil {
+		*f.calls = append(*f.calls, name+" "+strings.Join(args, " "))
+	}
+	switch {
+	case name == "tailscale":
+		if f.tailscale == "" {
+			return nil, errors.New("not running")
+		}
+		return []byte(f.tailscale), nil
+	case name == "ssh-keygen" && args[0] == "-l" && args[1] == "-f":
+		return []byte("256 SHA256:NEWKEY oak (ED25519)\n"), nil
+	case name == "ssh-keygen" && args[0] == "-l" && args[1] == "-F":
+		return []byte("oak.example.ts.net ED25519 SHA256:OLDKEY\n"), nil
+	case name == "ssh-keygen":
+		return nil, nil
+	}
 	if len(args) == 4 && args[0] == "-F" && args[2] == "-G" {
 		// Validating a config before saving it.
 		if data, _ := os.ReadFile(args[1]); strings.Contains(string(data), "BADOPT") {
@@ -53,13 +78,37 @@ func (fakeRunner) Output(_ context.Context, _ string, args ...string) ([]byte, e
 		"oak2":    "hostname oak.example.ts.net\nuser alice\nport 22\n",
 		"devbox1": "hostname devbox1.example.ts.net\nuser me\nport 2222\nproxyjump elm\n",
 	}[alias]
+	if f.knownHosts != "" {
+		out += "userknownhostsfile " + f.knownHosts + "\n"
+	}
 	return []byte(out), nil
+}
+
+// Combined is ssh connecting: a login check, or a host key scan into a
+// throwaway known_hosts.
+func (f fakeRunner) Combined(_ context.Context, name string, args ...string) ([]byte, error) {
+	if f.calls != nil {
+		*f.calls = append(*f.calls, name+" "+strings.Join(args, " "))
+	}
+	for i, a := range args {
+		if a == "-o" && strings.HasPrefix(args[i+1], "UserKnownHostsFile=") {
+			os.WriteFile(strings.TrimPrefix(args[i+1], "UserKnownHostsFile="), []byte("oak.example.ts.net ssh-ed25519 AAAANEW\n"), 0o600)
+			return nil, nil
+		}
+	}
+	alias := args[len(args)-2] // ... alias "exit 0"
+	if out, ok := f.logins[alias]; ok {
+		return []byte(out), errors.New("exit status 255")
+	}
+	return nil, nil
 }
 
 type testEnv struct {
 	a       *App
 	sshPath string
 	hist    *history.History
+	fake    fakeRunner
+	calls   *[]string
 }
 
 func newTestApp(t *testing.T, w, h int) *testEnv {
@@ -80,10 +129,12 @@ func newTestApp(t *testing.T, w, h int) *testEnv {
 	cfg.SSHConfig = sshPath
 	cfg.ConnectMode = config.ConnectInPlace
 	hist := history.Load(filepath.Join(dir, "history.json"))
-	a := New(Options{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Runner: fakeRunner{}, History: hist, BackupDir: filepath.Join(dir, "backups")})
+	calls := &[]string{}
+	fake := fakeRunner{logins: map[string]string{}, knownHosts: filepath.ToSlash(filepath.Join(dir, "known_hosts")), calls: calls}
+	a := New(Options{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Runner: fake, History: hist, BackupDir: filepath.Join(dir, "backups")})
 	a.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	resolveSync(a)
-	return &testEnv{a: a, sshPath: sshPath, hist: hist}
+	return &testEnv{a: a, sshPath: sshPath, hist: hist, fake: fake, calls: calls}
 }
 
 // resolveSync does what resolveAll does, without the event loop.

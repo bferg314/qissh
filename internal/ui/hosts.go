@@ -15,6 +15,7 @@ import (
 	"github.com/bferg314/quick-ssh/internal/config"
 	"github.com/bferg314/quick-ssh/internal/history"
 	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/quick-ssh/internal/status"
 )
 
 type sortMode int
@@ -23,9 +24,11 @@ const (
 	sortFrecency sortMode = iota
 	sortName
 	sortFile
+	sortStatus
+	nSorts
 )
 
-func (s sortMode) String() string { return [...]string{"most used", "name", "file order"}[s] }
+func (s sortMode) String() string { return [...]string{"most used", "name", "file order", "status"}[s] }
 
 // row is a host, or a rule (Host * and the like, Match) listed below the
 // hosts.
@@ -110,7 +113,10 @@ func (t *hostsTab) hostRows() []*row {
 }
 
 // refresh rebuilds the visible list, keeping the cursor on the same row.
-func (t *hostsTab) refresh(cfg *config.Config, hist *history.History) {
+// stateFn gives a host's status, for sorting by it.
+type stateFn func(*sshconfig.Host) status.State
+
+func (t *hostsTab) refresh(cfg *config.Config, hist *history.History, state stateFn) {
 	var keep string
 	if r := t.current(); r != nil {
 		keep = r.key()
@@ -131,7 +137,7 @@ func (t *hostsTab) refresh(cfg *config.Config, hist *history.History) {
 		}
 	}
 	now := time.Now()
-	sort.SliceStable(hosts, func(i, j int) bool { return t.less(hosts[i], hosts[j], hist, now) })
+	sort.SliceStable(hosts, func(i, j int) bool { return t.less(hosts[i], hosts[j], hist, state, now) })
 
 	if q := t.filter.Value(); q != "" {
 		hosts = filterHosts(hosts, q)
@@ -173,7 +179,7 @@ func filterHosts(hosts []*row, q string) []*row {
 }
 
 // less puts pinned hosts first, then orders by the chosen sort.
-func (t *hostsTab) less(a, b *row, hist *history.History, now time.Time) bool {
+func (t *hostsTab) less(a, b *row, hist *history.History, state stateFn, now time.Time) bool {
 	if a.pinned != b.pinned {
 		return a.pinned
 	}
@@ -184,6 +190,14 @@ func (t *hostsTab) less(a, b *row, hist *history.History, now time.Time) bool {
 		}
 	case sortFile:
 		return a.order < b.order
+	case sortStatus:
+		sa, sb := state(a.host), state(b.host)
+		if sa.Kind != sb.Kind {
+			return sa.Kind < sb.Kind
+		}
+		if sa.Latency != sb.Latency {
+			return sa.Latency < sb.Latency
+		}
 	}
 	return strings.ToLower(a.host.Alias) < strings.ToLower(b.host.Alias)
 }
@@ -266,16 +280,18 @@ func (a *App) hostsKey(key string) tea.Cmd {
 	case "m":
 		return a.openActions()
 	case "s":
-		t.sort = (t.sort + 1) % 3
+		t.sort = (t.sort + 1) % nSorts
 		a.refresh()
 		return a.notify(0, "Sorted by %s", t.sort)
 	case "r":
 		a.loadSSH()
-		return tea.Batch(a.resolveAll(), a.notify(0, "Reloaded %s", config.TildePath(a.ssh.Path)))
+		return tea.Batch(a.resolveAll(), a.loadTailscale(), a.notify(0, "Reloaded %s and checking hosts", config.TildePath(a.ssh.Path)))
 	case "d":
 		a.toggleDetails()
 	case "y":
 		return a.copyCurrent()
+	case "t":
+		return a.checkLogins()
 	case "n":
 		return a.openForm(nil)
 	case "e":
@@ -400,22 +416,34 @@ func (a *App) renderHosts(w, h int) string {
 		return strings.Join(lines, "\n")
 	}
 
-	const markW, lastW = 4, 9
-	aliasW := len("HOST")
+	// Columns: host and status always; on narrow screens CONNECTED goes
+	// first, then TARGET.
+	var c cols
+	c.alias = len("HOST")
 	for _, r := range t.view {
 		if r.host != nil {
-			aliasW = max(aliasW, utf8.RuneCountInString(r.host.Alias))
+			c.alias = max(c.alias, utf8.RuneCountInString(r.host.Alias))
 		}
 	}
-	aliasW = min(aliasW, 28)
-	targetW := max(10, w-markW-aliasW-lastW-4)
-	if w < 60 {
-		targetW = max(0, w-markW-aliasW-2)
+	c.alias = min(c.alias, 28)
+	c.status, c.last = 13, 9
+	if w < 70 {
+		c.last = 0
+	}
+	c.target = w - markW - c.alias - c.status - 4
+	if c.last > 0 {
+		c.target -= c.last + 2
+	}
+	if c.target < 10 {
+		c.target = 0
 	}
 
-	head := strings.Repeat(" ", markW) + fit(st.colHead.Render("HOST"), aliasW) + "  " + fit(st.colHead.Render("TARGET"), targetW)
-	if w >= 60 {
-		head += "  " + fit(st.colHead.Render("CONNECTED"), lastW)
+	head := strings.Repeat(" ", markW) + fit(st.colHead.Render("HOST"), c.alias) + "  " + fit(st.colHead.Render("STATUS"), c.status)
+	if c.target > 0 {
+		head += "  " + fit(st.colHead.Render("TARGET"), c.target)
+	}
+	if c.last > 0 {
+		head += "  " + fit(st.colHead.Render("CONNECTED"), c.last)
 	}
 	lines = append(lines, head)
 	h--
@@ -433,7 +461,7 @@ func (a *App) renderHosts(w, h int) string {
 		if i == t.cursor {
 			cursorLine = len(body)
 		}
-		body = append(body, a.hostLine(r, i == t.cursor, aliasW, targetW, lastW, w))
+		body = append(body, a.hostLine(r, i == t.cursor, c, w))
 	}
 	if cursorLine < t.offset {
 		t.offset = cursorLine
@@ -450,7 +478,13 @@ func (a *App) renderHosts(w, h int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (a *App) hostLine(r *row, sel bool, aliasW, targetW, lastW, w int) string {
+// markW is the cursor marker and the pin/hidden/selected mark.
+const markW = 4
+
+// cols are the Hosts list's column widths; 0 means left out.
+type cols struct{ alias, status, target, last int }
+
+func (a *App) hostLine(r *row, sel bool, c cols, w int) string {
 	st := a.st
 	marker := "  "
 	if sel {
@@ -476,19 +510,22 @@ func (a *App) hostLine(r *row, sel bool, aliasW, targetW, lastW, w int) string {
 		return marker + fit(text, max(10, w-4-22)) + "  " + where
 	}
 
-	name := st.highlight(r.host.Alias, aliasW, r.matches, sel)
+	name := st.highlight(r.host.Alias, c.alias, r.matches, sel)
 	if r.hidden && !sel {
 		name = st.dim.Render(ansi.Strip(name))
 	}
-	line := marker + name + "  " + fit(a.targetCell(r.host), targetW)
-	if w >= 60 {
+	line := marker + name + "  " + fit(a.statusCell(r.host), c.status)
+	if c.target > 0 {
+		line += "  " + fit(a.targetCell(r.host), c.target)
+	}
+	if c.last > 0 {
 		var last string
 		if e := a.hist.Get(r.host.Alias); e != nil {
 			last = st.agoStyle(e.Last).Render(ago(e.Last))
 		} else {
 			last = st.faintText.Render("never")
 		}
-		line += "  " + fit(last, lastW)
+		line += "  " + fit(last, c.last)
 	}
 	return line
 }
@@ -511,9 +548,5 @@ func (a *App) targetCell(h *sshconfig.Host) string {
 	case res.Err != nil:
 		return st.bad.Render("ssh -G: " + res.Err.Error())
 	}
-	s := st.target.Render(res.Target())
-	if j := res.Jump(); j != "" {
-		s += st.dim.Render(" via " + j)
-	}
-	return s
+	return st.target.Render(res.Target())
 }

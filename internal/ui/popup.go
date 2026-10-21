@@ -16,6 +16,8 @@ import (
 // can be picked with the cursor or by its key.
 type actionPopup struct {
 	title   string
+	body    []string // shown above the actions
+	warning string   // shown above the actions, in warning colours
 	actions []popupAction
 	cursor  int
 }
@@ -56,6 +58,7 @@ func (a *App) openActions() tea.Cmd {
 		}
 		add(t.Key, t.Name, strings.Join(append([]string{t.Cmd}, t.Args...), " "), func() tea.Cmd { return a.launch(t, h.Alias) })
 	}
+	add("t", "Check login", "key auth only, never prompts; fixes host keys", a.checkLogins)
 	add("y", "Copy…", "ssh command, hostname, block", a.copyCurrent)
 	add("e", "Edit…", "HostName, User, Port, key, jump; or delete", func() tea.Cmd { return a.openForm(h) })
 	add("E", "Edit in editor", config.TildePath(h.File.Path), func() tea.Cmd { return a.edit(h.Location) })
@@ -105,6 +108,17 @@ func (a *App) renderPopup() string {
 		keyW = max(keyW, lipgloss.Width(act.key))
 	}
 	lines := []string{st.bold.Render(p.title), ""}
+	for _, b := range p.body {
+		lines = append(lines, st.textS.Render(b))
+	}
+	if p.warning != "" {
+		for _, l := range strings.Split(ansi.Wordwrap(p.warning, max(30, min(80, a.w-12)), ""), "\n") {
+			lines = append(lines, st.warn.Render(l))
+		}
+	}
+	if len(p.body) > 0 || p.warning != "" {
+		lines = append(lines, "")
+	}
 	for i, act := range p.actions {
 		marker := "  "
 		label := st.textS.Render(act.label)

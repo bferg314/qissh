@@ -10,9 +10,14 @@ import (
 	"strings"
 )
 
-// Runner runs a command and returns its standard output.
+// Runner runs commands.
 type Runner interface {
+	// Output runs a command and returns its standard output. A failure
+	// carries the first line of standard error.
 	Output(ctx context.Context, name string, args ...string) ([]byte, error)
+	// Combined runs a command and returns standard output and standard
+	// error together, for commands whose complaints need reading whole.
+	Combined(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
 // Exec runs real programs.
@@ -22,6 +27,7 @@ type Exec struct{}
 // command's standard error, which is where ssh explains itself.
 func (Exec) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	noTerminal(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -31,6 +37,13 @@ func (Exec) Output(ctx context.Context, name string, args ...string) ([]byte, er
 		}
 	}
 	return out, err
+}
+
+// Combined runs name with args and returns everything it printed.
+func (Exec) Combined(ctx context.Context, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	noTerminal(cmd)
+	return cmd.CombinedOutput()
 }
 
 // FirstLine is the first non-empty line of s, trimmed.

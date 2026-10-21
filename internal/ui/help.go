@@ -54,10 +54,11 @@ func (a *App) renderHelp() string {
 		row("E", "edit its block in your editor"),
 		row("d", "show / hide the detail pane"),
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
-		row("s", "sort: most used · name · file order"),
+		row("t", "check login (fixes changed host keys)"),
+		row("s", "sort: most used · name · file · status"),
 		row("* / h", "pin to the top · hide"),
 		row("H", "show / hide hidden hosts"),
-		row("r", "reload the ssh config"),
+		row("r", "reload the config and re-check hosts"),
 	}
 
 	right := []string{title("Tools")}
@@ -83,6 +84,9 @@ func (a *App) renderHelp() string {
 		row(a.cfg.AliasName+" <host>", "connect (unique fuzzy match)"),
 		row(a.cfg.AliasName+" -", "reconnect to the last host"),
 		row(a.cfg.AliasName+" ls", "list hosts (--json, --names)"),
+		"",
+		title("Status"),
+		fit(st.ok.Render("●")+st.textS.Render(" up  ")+st.bad.Render("○")+st.textS.Render(" down  ")+st.dim.Render("○ off")+st.textS.Render(" tailnet  ")+st.warn.Render("▲")+st.textS.Render(" host key"), keyW+descW),
 		"",
 		title("Marks"),
 		fit(st.pin.Render("★")+st.textS.Render(" pinned  ")+st.ok.Render("✓")+st.textS.Render(" selected  ")+

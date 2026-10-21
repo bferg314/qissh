@@ -68,11 +68,16 @@ func (o Options) Program() string {
 
 // Args are the arguments that put ssh in front of alias: -F when a config
 // file is set, then the alias.
-func (o Options) Args(alias string) []string {
+func (o Options) Args(alias string) []string { return o.ArgsWith(nil, alias) }
+
+// ArgsWith puts -F (when set), then extra options such as -o BatchMode=yes,
+// before alias.
+func (o Options) ArgsWith(extra []string, alias string) []string {
 	var args []string
 	if o.ConfigFile != "" {
 		args = append(args, "-F", o.ConfigFile)
 	}
+	args = append(args, extra...)
 	if strings.HasPrefix(alias, "-") {
 		args = append(args, "--") // so the alias isn't read as an option
 	}

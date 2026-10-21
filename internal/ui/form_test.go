@@ -24,11 +24,11 @@ func runCmd(a *App, cmd tea.Cmd) {
 			for _, c := range msg {
 				runCmd(a, c)
 			}
-		case savedMsg:
+		case savedMsg, loginMsg, trustMsg, reachMsg, tailscaleMsg:
 			_, next := a.Update(msg)
 			runCmd(a, next)
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(200 * time.Millisecond):
 	}
 }
 
