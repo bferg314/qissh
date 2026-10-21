@@ -210,6 +210,10 @@ func (a *App) barMode() (string, color.Color) {
 		return "NEW", st.green
 	case a.form != nil:
 		return "EDIT", st.yellow
+	case a.keyForm != nil:
+		return "NEW KEY", st.green
+	case a.copyKey != nil && a.tab == tabHosts:
+		return "PICK HOSTS", st.yellow
 	case a.popup != nil:
 		return "ACTIONS", st.green
 	}

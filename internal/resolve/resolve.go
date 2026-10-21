@@ -5,6 +5,7 @@ package resolve
 
 import (
 	"context"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -64,6 +65,17 @@ func (o Options) Program() string {
 		return "ssh"
 	}
 	return o.SSH
+}
+
+// Tool is one of ssh's companion programs (ssh-keygen, ssh-add) that goes
+// with the ssh being used: beside it when ssh is a path, otherwise
+// whichever is on PATH.
+func (o Options) Tool(name string) string {
+	p := o.Program()
+	if strings.ContainsAny(p, `/\`) {
+		return filepath.Join(filepath.Dir(p), name+filepath.Ext(p))
+	}
+	return name
 }
 
 // Args are the arguments that put ssh in front of alias: -F when a config

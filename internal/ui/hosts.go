@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/bferg314/quick-ssh/internal/config"
 	"github.com/bferg314/quick-ssh/internal/history"
+	"github.com/bferg314/quick-ssh/internal/launcher"
 	"github.com/bferg314/quick-ssh/internal/sshconfig"
 	"github.com/bferg314/quick-ssh/internal/status"
 )
@@ -140,7 +142,7 @@ func (t *hostsTab) refresh(cfg *config.Config, hist *history.History, state stat
 	sort.SliceStable(hosts, func(i, j int) bool { return t.less(hosts[i], hosts[j], hist, state, now) })
 
 	if q := t.filter.Value(); q != "" {
-		hosts = filterHosts(hosts, q)
+		hosts = filterHosts(hosts, q, func(alias string) []string { return cfg.Meta(alias).Tags })
 		rules = nil
 	}
 	t.view = append(hosts, rules...)
@@ -155,8 +157,17 @@ func (t *hostsTab) refresh(cfg *config.Config, hist *history.History, state stat
 }
 
 // filterHosts keeps hosts whose alias fuzzy-matches q, best first, then
-// hosts whose HostName contains q.
-func filterHosts(hosts []*row, q string) []*row {
+// hosts whose HostName or a tag contains q. "#tag" matches tags only.
+func filterHosts(hosts []*row, q string, tags func(alias string) []string) []*row {
+	if tag, ok := strings.CutPrefix(strings.ToLower(q), "#"); ok {
+		var out []*row
+		for _, r := range hosts {
+			if slices.ContainsFunc(tags(r.host.Alias), func(t string) bool { return strings.Contains(t, tag) }) {
+				out = append(out, r)
+			}
+		}
+		return out
+	}
 	names := make([]string, len(hosts))
 	for i, r := range hosts {
 		names[i] = r.host.Alias
@@ -171,7 +182,11 @@ func filterHosts(hosts []*row, q string) []*row {
 	}
 	lq := strings.ToLower(q)
 	for _, r := range hosts {
-		if !taken[r] && strings.Contains(strings.ToLower(r.host.Value("hostname")), lq) {
+		if taken[r] {
+			continue
+		}
+		if strings.Contains(strings.ToLower(r.host.Value("hostname")), lq) ||
+			slices.ContainsFunc(tags(r.host.Alias), func(t string) bool { return strings.Contains(t, lq) }) {
 			out = append(out, r)
 		}
 	}
@@ -309,6 +324,10 @@ func (a *App) hostsKey(key string) tea.Cmd {
 		return a.toggleHidden()
 	case "H":
 		return a.toggleShowHidden()
+	case "C":
+		return a.copyKeyToHosts()
+	case "w":
+		return a.openWeb()
 	default:
 		if h := t.currentHost(); h != nil && !reservedKeys[key] {
 			for _, tool := range a.enabledTools() {
@@ -335,6 +354,25 @@ func (a *App) connectSelected() tea.Cmd {
 		return a.edit(r.rule.Location)
 	}
 	return a.connect(r.host.Alias)
+}
+
+// openWeb opens the host's web page from its metadata.
+func (a *App) openWeb() tea.Cmd {
+	h := a.hosts.currentHost()
+	if h == nil {
+		return nil
+	}
+	url := a.cfg.Meta(h.Alias).Web
+	if url == "" {
+		return a.notify(0, "%s has no web page: e adds one", h.Alias)
+	}
+	if !strings.Contains(url, "://") {
+		url = "http://" + url
+	}
+	if err := launcher.OpenURL(url); err != nil {
+		return a.notify(2, "Opening %s: %v", url, err)
+	}
+	return a.notify(1, "Opened %s", url)
 }
 
 func (a *App) togglePinned() tea.Cmd {
@@ -395,6 +433,11 @@ func (a *App) renderHosts(w, h int) string {
 	st := a.st
 	var lines []string
 
+	if k := a.copyKey; k != nil {
+		lines = append(lines, " "+st.warn.Render("Copy "+k.Name+" to which hosts?")+st.dim.Render(" space selects · ")+
+			st.key.Render("C")+st.dim.Render(" copies (to the selected hosts, or this one) · ")+st.key.Render("esc")+st.dim.Render(" cancels"))
+		h--
+	}
 	if t.filter.Focused() || t.filter.Value() != "" {
 		lines = append(lines, " "+st.key.Render("/")+" "+t.filter.View())
 		h--
@@ -430,9 +473,22 @@ func (a *App) renderHosts(w, h int) string {
 	if w < 70 {
 		c.last = 0
 	}
+	if w >= 72 {
+		for _, r := range t.view {
+			if r.host != nil {
+				c.tags = max(c.tags, len(tagsText(a.cfg.Meta(r.host.Alias).Tags)))
+			}
+		}
+		if c.tags > 0 {
+			c.tags = max(len("TAGS"), min(c.tags, 20))
+		}
+	}
 	c.target = w - markW - c.alias - c.status - 4
 	if c.last > 0 {
 		c.target -= c.last + 2
+	}
+	if c.tags > 0 {
+		c.target -= c.tags + 2
 	}
 	if c.target < 10 {
 		c.target = 0
@@ -441,6 +497,9 @@ func (a *App) renderHosts(w, h int) string {
 	head := strings.Repeat(" ", markW) + fit(st.colHead.Render("HOST"), c.alias) + "  " + fit(st.colHead.Render("STATUS"), c.status)
 	if c.target > 0 {
 		head += "  " + fit(st.colHead.Render("TARGET"), c.target)
+	}
+	if c.tags > 0 {
+		head += "  " + fit(st.colHead.Render("TAGS"), c.tags)
 	}
 	if c.last > 0 {
 		head += "  " + fit(st.colHead.Render("CONNECTED"), c.last)
@@ -482,7 +541,15 @@ func (a *App) renderHosts(w, h int) string {
 const markW = 4
 
 // cols are the Hosts list's column widths; 0 means left out.
-type cols struct{ alias, status, target, last int }
+type cols struct{ alias, status, target, tags, last int }
+
+// tagsText is how tags are shown: "#home #pi".
+func tagsText(tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	return "#" + strings.Join(tags, " #")
+}
 
 func (a *App) hostLine(r *row, sel bool, c cols, w int) string {
 	st := a.st
@@ -517,6 +584,9 @@ func (a *App) hostLine(r *row, sel bool, c cols, w int) string {
 	line := marker + name + "  " + fit(a.statusCell(r.host), c.status)
 	if c.target > 0 {
 		line += "  " + fit(a.targetCell(r.host), c.target)
+	}
+	if c.tags > 0 {
+		line += "  " + fit(st.tag.Render(tagsText(a.cfg.Meta(r.host.Alias).Tags)), c.tags)
 	}
 	if c.last > 0 {
 		var last string

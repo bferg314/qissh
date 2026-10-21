@@ -59,8 +59,12 @@ func (a *App) openActions() tea.Cmd {
 		add(t.Key, t.Name, strings.Join(append([]string{t.Cmd}, t.Args...), " "), func() tea.Cmd { return a.launch(t, h.Alias) })
 	}
 	add("t", "Check login", "key auth only, never prompts; fixes host keys", a.checkLogins)
+	add("C", "Copy a key here…", "adds your public key to its authorized_keys", a.copyKeyToHosts)
+	if web := a.cfg.Meta(h.Alias).Web; web != "" {
+		add("w", "Open web page", web, a.openWeb)
+	}
 	add("y", "Copy…", "ssh command, hostname, block", a.copyCurrent)
-	add("e", "Edit…", "HostName, User, Port, key, jump; or delete", func() tea.Cmd { return a.openForm(h) })
+	add("e", "Edit…", "HostName, User, Port, key, jump, tags; or delete", func() tea.Cmd { return a.openForm(h) })
 	add("E", "Edit in editor", config.TildePath(h.File.Path), func() tea.Cmd { return a.edit(h.Location) })
 	pinned, hidden := a.cfg.HostMarks()
 	if pinned[config.HostKey(h.Alias)] {

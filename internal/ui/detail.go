@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/quick-ssh/internal/config"
+	"github.com/bferg314/quick-ssh/internal/keys"
 	"github.com/bferg314/quick-ssh/internal/resolve"
 	"github.com/bferg314/quick-ssh/internal/sshconfig"
 )
@@ -162,6 +163,7 @@ func (a *App) renderDetail(w, h int, border bool) string {
 			add(a.targetCell(h))
 		}
 		lines = &body
+		a.appendNotes(h, add, section)
 		a.appendStatus(h, add, section)
 		if res != nil && res.Err == nil {
 			a.appendConnection(h, res, add, section)
@@ -250,20 +252,20 @@ func (a *App) appendConnection(h *sshconfig.Host, res *resolve.Resolved, add fun
 	}
 
 	// ssh lists every default key file; only the ones that exist matter.
-	var keys []string
+	var files []string
 	for _, f := range res.IdentityFiles {
 		if _, err := os.Stat(config.ExpandPath(f)); err == nil {
-			keys = append(keys, f)
+			files = append(files, f)
 		}
 	}
 	src := a.source(h, "identityfile")
 	switch {
-	case len(keys) == 0 && src != "default":
+	case len(files) == 0 && src != "default":
 		add(st.dim.Render(fmt.Sprintf("%-10s", "key")) + " " + st.warn.Render(strings.Join(res.IdentityFiles, ", ")+" (not found)"))
-	case len(keys) == 0:
+	case len(files) == 0:
 		add(st.dim.Render(fmt.Sprintf("%-10s", "key")) + " " + st.faintText.Render("none on disk: agent keys only"))
 	default:
-		for i, k := range keys {
+		for i, k := range files {
 			label := ""
 			if i == 0 {
 				label = "key"
@@ -272,6 +274,14 @@ func (a *App) appendConnection(h *sshconfig.Host, res *resolve.Resolved, add fun
 			if i == 0 && src != "" {
 				line += st.faintText.Render("  " + src)
 			}
+			if key := a.keyAt(config.ExpandPath(k)); key != nil {
+				switch {
+				case a.keys.agent.Has(key):
+					line += st.ok.Render("  in agent")
+				case key.Protection == keys.Passphrase && a.keys.agent.Running:
+					line += st.dim.Render("  not in agent: asks for the passphrase")
+				}
+			}
 			add(line)
 		}
 	}
@@ -279,6 +289,37 @@ func (a *App) appendConnection(h *sshconfig.Host, res *resolve.Resolved, add fun
 	for _, kw := range []string{"localforward", "remoteforward", "dynamicforward"} {
 		for _, v := range res.Options[kw] {
 			add(st.dim.Render(fmt.Sprintf("%-10s", strings.TrimSuffix(kw, "forward")+" fwd")) + " " + st.textS.Render(v))
+		}
+	}
+}
+
+// keyAt is the key pair whose private key is at path, if it was found.
+func (a *App) keyAt(path string) *keys.Key {
+	for _, k := range a.keys.list {
+		if k.UsedBy([]string{path}, func(s string) string { return s }) {
+			return k
+		}
+	}
+	return nil
+}
+
+// appendNotes shows the host's tags, web page and notes, when it has any.
+func (a *App) appendNotes(h *sshconfig.Host, add func(string), section func(string)) {
+	st := a.st
+	m := a.cfg.Meta(h.Alias)
+	if m.Empty() {
+		return
+	}
+	section("NOTES")
+	if len(m.Tags) > 0 {
+		add(st.tag.Render(tagsText(m.Tags)))
+	}
+	if m.Web != "" {
+		add(st.target.Render(m.Web) + st.faintText.Render("  w opens"))
+	}
+	for _, para := range strings.Split(m.Notes, "\n") {
+		for _, l := range wrap(para, max(10, a.paneWidth()-4)) {
+			add(st.textS.Render(l))
 		}
 	}
 }

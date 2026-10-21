@@ -44,7 +44,11 @@ type fakeRunner struct {
 	// knownHosts is reported as every host's UserKnownHostsFile.
 	knownHosts string
 	tailscale  string // `tailscale status --json`
-	calls      *[]string
+	// agent is what `ssh-add -l` prints; "" means no agent.
+	agent string
+	// keyDir holds the test keys; elm names its id_ed25519.
+	keyDir string
+	calls  *[]string
 }
 
 func (f fakeRunner) Output(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -78,6 +82,9 @@ func (f fakeRunner) Output(_ context.Context, name string, args ...string) ([]by
 		"oak2":    "hostname oak.example.ts.net\nuser alice\nport 22\n",
 		"devbox1": "hostname devbox1.example.ts.net\nuser me\nport 2222\nproxyjump elm\n",
 	}[alias]
+	if alias == "elm" && f.keyDir != "" {
+		out += "identityfile " + filepath.ToSlash(filepath.Join(f.keyDir, "id_ed25519")) + "\n"
+	}
 	if f.knownHosts != "" {
 		out += "userknownhostsfile " + f.knownHosts + "\n"
 	}
@@ -89,6 +96,12 @@ func (f fakeRunner) Output(_ context.Context, name string, args ...string) ([]by
 func (f fakeRunner) Combined(_ context.Context, name string, args ...string) ([]byte, error) {
 	if f.calls != nil {
 		*f.calls = append(*f.calls, name+" "+strings.Join(args, " "))
+	}
+	if strings.HasSuffix(name, "ssh-add") {
+		if f.agent == "" {
+			return []byte("Could not open a connection to your authentication agent.\n"), errors.New("exit status 2")
+		}
+		return []byte(f.agent), nil
 	}
 	for i, a := range args {
 		if a == "-o" && strings.HasPrefix(args[i+1], "UserKnownHostsFile=") {
@@ -130,10 +143,15 @@ func newTestApp(t *testing.T, w, h int) *testEnv {
 	cfg.ConnectMode = config.ConnectInPlace
 	hist := history.Load(filepath.Join(dir, "history.json"))
 	calls := &[]string{}
-	fake := fakeRunner{logins: map[string]string{}, knownHosts: filepath.ToSlash(filepath.Join(dir, "known_hosts")), calls: calls}
-	a := New(Options{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Runner: fake, History: hist, BackupDir: filepath.Join(dir, "backups")})
+	keyDir := filepath.Join(dir, "keys")
+	agentKey := writeTestKeys(t, keyDir)
+	fake := fakeRunner{logins: map[string]string{}, knownHosts: filepath.ToSlash(filepath.Join(dir, "known_hosts")), calls: calls,
+		agent: "256 " + agentKey + " me@here (ED25519)\n", keyDir: keyDir}
+	a := New(Options{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Runner: fake, History: hist,
+		BackupDir: filepath.Join(dir, "backups"), KeyDir: keyDir})
 	a.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	resolveSync(a)
+	a.Update(a.loadKeys()())
 	return &testEnv{a: a, sshPath: sshPath, hist: hist, fake: fake, calls: calls}
 }
 
@@ -372,19 +390,24 @@ func TestMissingSSHConfig(t *testing.T) {
 // Every screen must fill the terminal exactly, at any size.
 func TestEveryScreenFits(t *testing.T) {
 	screens := map[string]func(a *App){
-		"hosts":    func(*App) {},
-		"filter":   func(a *App) { press(a, "/", "p") },
-		"popup":    func(a *App) { press(a, "m") },
-		"copy":     func(a *App) { press(a, "y") },
-		"help":     func(a *App) { press(a, "?") },
-		"details":  func(a *App) { press(a, "d") },
-		"rule":     func(a *App) { press(a, "end") },
-		"discover": func(a *App) { press(a, "2") },
-		"keys":     func(a *App) { press(a, "3") },
-		"settings": func(a *App) { press(a, "4") },
-		"new host": func(a *App) { press(a, "n") },
-		"edit":     func(a *App) { press(a, "e") },
-		"delete?":  func(a *App) { press(a, "e"); a.form.confirmDelete = true },
+		"hosts":      func(*App) {},
+		"filter":     func(a *App) { press(a, "/", "p") },
+		"popup":      func(a *App) { press(a, "m") },
+		"copy":       func(a *App) { press(a, "y") },
+		"help":       func(a *App) { press(a, "?") },
+		"details":    func(a *App) { press(a, "d") },
+		"rule":       func(a *App) { press(a, "end") },
+		"discover":   func(a *App) { press(a, "2") },
+		"keys":       func(a *App) { press(a, "3") },
+		"new key":    func(a *App) { press(a, "3", "n") },
+		"key menu":   func(a *App) { press(a, "3", "enter") },
+		"pick key":   func(a *App) { press(a, "C") },
+		"confirm":    func(a *App) { press(a, "C", "1") },
+		"pick hosts": func(a *App) { press(a, "3", "C") },
+		"settings":   func(a *App) { press(a, "4") },
+		"new host":   func(a *App) { press(a, "n") },
+		"edit":       func(a *App) { press(a, "e") },
+		"delete?":    func(a *App) { press(a, "e"); a.form.confirmDelete = true },
 	}
 	sizes := [][2]int{{40, 10}, {60, 15}, {80, 24}, {99, 30}, {100, 30}, {200, 50}}
 	for name, setup := range screens {

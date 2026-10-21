@@ -16,6 +16,7 @@ import (
 
 	"github.com/bferg314/quick-ssh/internal/config"
 	"github.com/bferg314/quick-ssh/internal/history"
+	"github.com/bferg314/quick-ssh/internal/keys"
 	"github.com/bferg314/quick-ssh/internal/resolve"
 	"github.com/bferg314/quick-ssh/internal/run"
 	"github.com/bferg314/quick-ssh/internal/sshconfig"
@@ -47,6 +48,7 @@ var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "s": true, "m": true, "d": true, "y": true,
 	"j": true, "k": true, "J": true, "K": true, "1": true, "2": true, "3": true, "4": true,
 	"*": true, "h": true, "H": true, "E": true, "e": true, "n": true, "t": true, "a": true, "space": true, "enter": true,
+	"C": true, "w": true,
 }
 
 // Options are what main hands the app.
@@ -62,6 +64,8 @@ type Options struct {
 	CmdFile string
 	// BackupDir is where config backups go; "" uses the OS cache folder.
 	BackupDir string
+	// KeyDir is where key pairs are looked for; "" is ~/.ssh.
+	KeyDir string
 }
 
 // Outcome is what to do once the TUI has exited.
@@ -84,6 +88,7 @@ type App struct {
 	w, h     int
 	tab      int
 	hosts    hostsTab
+	keys     keysTab
 	settings settingsTab
 	detail   detailState
 
@@ -95,10 +100,15 @@ type App struct {
 	mtimes   map[string]time.Time
 	checks   checks
 
-	spin       spinner.Model
-	spinning   bool
-	popup      *actionPopup
-	form       *hostForm
+	spin     spinner.Model
+	spinning bool
+	popup    *actionPopup
+	form     *hostForm
+	keyForm  *keyForm
+	// copyKey is a key chosen on the Keys tab, waiting for hosts to be
+	// picked on the Hosts tab.
+	copyKey    *keys.Key
+	keyDir     string
 	backupDir  string
 	help       bool
 	helpScroll int
@@ -156,6 +166,10 @@ func New(o Options) *App {
 	if a.backupDir == "" {
 		a.backupDir = backupDir()
 	}
+	a.keyDir = o.KeyDir
+	if a.keyDir == "" {
+		a.keyDir = keys.Dir()
+	}
 	if a.hist == nil {
 		a.hist = history.Load("")
 	}
@@ -170,7 +184,7 @@ func New(o Options) *App {
 func (a *App) Outcome() Outcome { return a.outcome }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch(), a.loadTailscale(), a.checkTick())
+	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch(), a.loadTailscale(), a.checkTick(), a.loadKeys())
 }
 
 // loadSSH (re)reads the ssh config and rebuilds the host list. Resolved
@@ -337,6 +351,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case trustMsg:
 		return a, a.handleTrust(msg)
 
+	case keysMsg:
+		a.handleKeys(msg)
+		return a, nil
+
+	case focusKeyMsg:
+		a.keys.focus(msg.name)
+		return a, nil
+
+	case keyGenMsg:
+		return a, a.handleKeyGen(msg)
+
+	case agentAddMsg:
+		return a, a.handleAgentAdd(msg)
+
+	case copyDoneMsg:
+		return a, a.handleCopyDone(msg)
+
 	case watchMsg:
 		if a.changedOnDisk() {
 			a.loadSSH()
@@ -385,6 +416,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.form != nil {
 		return a, a.updateForm(msg)
 	}
+	if a.keyForm != nil {
+		return a, a.updateKeyForm(msg)
+	}
 	return a, a.updateFilter(msg)
 }
 
@@ -399,6 +433,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if a.form != nil {
 		return a.formKey(msg)
+	}
+	if a.keyForm != nil {
+		return a.keyFormKey(msg)
 	}
 	if a.popup != nil {
 		return a.popupKey(key)
@@ -444,6 +481,10 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return f.Focus()
 		}
 	case "esc":
+		if a.copyKey != nil {
+			a.copyKey = nil
+			return a.notify(0, "Not copying the key")
+		}
 		if f := a.activeFilter(); f != nil && f.Value() != "" {
 			f.SetValue("")
 			a.refresh()
@@ -461,6 +502,8 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch a.tab {
 	case tabHosts:
 		return a.hostsKey(key)
+	case tabKeys:
+		return a.keysKey(key)
 	case tabSettings:
 		return a.settingsKey(key)
 	}
@@ -489,6 +532,9 @@ func (a *App) updateFilter(msg tea.Msg) tea.Cmd {
 // while quick-ssh was running.
 func (a *App) setTab(tab int) tea.Cmd {
 	a.tab = tab
+	if tab == tabKeys {
+		return a.loadKeys() // keys made or loaded outside quick-ssh
+	}
 	if tab != tabSettings {
 		return nil
 	}
@@ -543,9 +589,7 @@ func (a *App) render() string {
 			"Tailnet devices and known_hosts entries that aren't in your ssh config yet,",
 			"ready to add with a key press. Coming in milestone M5.")
 	case tabKeys:
-		body = a.renderComingSoon("Keys",
-			"Your key pairs: fingerprints, passphrases, what's in the agent and which hosts",
-			"use each one, plus generating keys and copying them to hosts. Coming in milestone M4.")
+		body = a.renderKeys(bodyH)
 	case tabSettings:
 		body = a.renderSettings(bodyH)
 	}
@@ -559,6 +603,8 @@ func (a *App) render() string {
 		overlay = a.renderHelp()
 	case a.form != nil:
 		overlay = a.renderForm()
+	case a.keyForm != nil:
+		overlay = a.renderKeyForm()
 	case a.popup != nil:
 		overlay = a.renderPopup()
 	}
@@ -606,6 +652,9 @@ func padLines(s string, h, w int) string {
 func (a *App) renderHeader() string {
 	logo := a.st.logo.Render(" ◆ quick-ssh ")
 	counts := []string{fmt.Sprintf("%d", len(a.ssh.Hosts)-a.hosts.hiddenCount()), "", "", ""}
+	if a.keys.loaded {
+		counts[tabKeys] = fmt.Sprintf("%d", len(a.keys.list))
+	}
 	var tabs []string
 	for i, name := range tabNames {
 		label := name

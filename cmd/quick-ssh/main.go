@@ -228,6 +228,9 @@ type lsHost struct {
 	Line          int       `json:"line"`
 	Pinned        bool      `json:"pinned"`
 	Hidden        bool      `json:"hidden"`
+	Tags          []string  `json:"tags,omitempty"`
+	Notes         string    `json:"notes,omitempty"`
+	Web           string    `json:"web,omitempty"`
 	LastConnected time.Time `json:"last_connected,omitzero"`
 	Connections   int       `json:"connections"`
 	Error         string    `json:"error,omitempty"`
@@ -274,6 +277,8 @@ func runLs(args []string) error {
 		r := resolved[i]
 		l := lsHost{Alias: h.Alias, File: h.File.Path, Line: h.LineNo(),
 			Pinned: pinned[config.HostKey(h.Alias)], Hidden: hidden[config.HostKey(h.Alias)]}
+		m := s.cfg.Meta(h.Alias)
+		l.Tags, l.Notes, l.Web = m.Tags, m.Notes, m.Web
 		if r.Err != nil {
 			l.Error = r.Err.Error()
 		} else {

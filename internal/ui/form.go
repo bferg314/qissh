@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -27,20 +28,25 @@ const (
 	fPort
 	fIdentity
 	fJump
+	// The rest are quick-ssh's own, kept in config.toml.
+	fTags
+	fWeb
+	fNotes
 	nFields
 )
 
-var fieldLabels = [nFields]string{"Alias", "HostName", "User", "Port", "IdentityFile", "ProxyJump"}
+var fieldLabels = [nFields]string{"Alias", "HostName", "User", "Port", "IdentityFile", "ProxyJump", "Tags", "Web page", "Notes"}
 
 // hostForm adds a host (n) or edits one (e). Focus moves through the
 // fields, then the Save button, then, when editing, Delete.
 type hostForm struct {
-	host   *sshconfig.Host // nil for a new host
-	orig   sshconfig.HostFields
-	inputs [nFields]textinput.Model
-	focus  int
-	err    string
-	saving bool
+	host     *sshconfig.Host // nil for a new host
+	orig     sshconfig.HostFields
+	origMeta config.HostMeta
+	inputs   [nFields]textinput.Model
+	focus    int
+	err      string
+	saving   bool
 	// confirmDelete asks y/n before deleting.
 	confirmDelete bool
 }
@@ -53,6 +59,7 @@ const (
 type savedMsg struct {
 	alias, oldAlias string
 	deleted         bool
+	meta            config.HostMeta
 	backup          string
 	err             error
 }
@@ -64,8 +71,10 @@ func (a *App) openForm(h *sshconfig.Host) tea.Cmd {
 	f := &hostForm{host: h}
 	if h != nil {
 		f.orig = sshconfig.FieldsOf(h)
+		f.origMeta = a.cfg.Meta(h.Alias)
 	}
-	values := [nFields]string{f.orig.Alias, f.orig.HostName, f.orig.User, f.orig.Port, f.orig.IdentityFile, f.orig.ProxyJump}
+	values := [nFields]string{f.orig.Alias, f.orig.HostName, f.orig.User, f.orig.Port, f.orig.IdentityFile, f.orig.ProxyJump,
+		strings.Join(f.origMeta.Tags, " "), f.origMeta.Web, f.origMeta.Notes}
 	placeholders := [nFields]string{
 		"the name you'll type",
 		"address or DNS name; empty uses the alias",
@@ -73,6 +82,9 @@ func (a *App) openForm(h *sshconfig.Host) tea.Cmd {
 		"22",
 		"empty: ssh's default keys and your agent",
 		"empty: connect directly",
+		"home pi (filter with /#home)",
+		"http://… opened with w",
+		"anything worth remembering",
 	}
 	for i := range f.inputs {
 		in := textinput.New()
@@ -121,6 +133,18 @@ func (f *hostForm) fields() sshconfig.HostFields {
 		Alias: v(fAlias), HostName: v(fHostName), User: v(fUser),
 		Port: v(fPort), IdentityFile: v(fIdentity), ProxyJump: v(fJump),
 	}
+}
+
+func (f *hostForm) meta() config.HostMeta {
+	return config.HostMeta{
+		Tags:  config.ParseTags(f.inputs[fTags].Value()),
+		Web:   strings.TrimSpace(f.inputs[fWeb].Value()),
+		Notes: strings.TrimSpace(f.inputs[fNotes].Value()),
+	}
+}
+
+func sameMeta(a, b config.HostMeta) bool {
+	return slices.Equal(a.Tags, b.Tags) && a.Web == b.Web && a.Notes == b.Notes
 }
 
 func (a *App) formKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -197,6 +221,8 @@ func (a *App) checkForm() bool {
 		return bad(fUser, "A user name can't contain spaces")
 	case strings.ContainsAny(v.ProxyJump, " \t"):
 		return bad(fJump, "ProxyJump is a host alias or user@host:port, without spaces")
+	case strings.ContainsAny(strings.TrimSpace(f.inputs[fWeb].Value()), " \t"):
+		return bad(fWeb, "A web address can't contain spaces")
 	}
 	if v.Port != "" {
 		if n, err := strconv.Atoi(v.Port); err != nil || n < 1 || n > 65535 {
@@ -214,10 +240,16 @@ func (a *App) saveForm() tea.Cmd {
 	if !a.checkForm() {
 		return nil
 	}
-	fields := f.fields()
+	fields, meta := f.fields(), f.meta()
 	if f.host != nil && fields == f.orig {
+		// Only quick-ssh's own fields changed: the ssh config stays as it is.
 		a.form = nil
-		return a.notify(0, "No changes")
+		if sameMeta(meta, f.origMeta) {
+			return a.notify(0, "No changes")
+		}
+		a.cfg.SetMeta(f.host.Alias, meta)
+		a.refresh()
+		return tea.Batch(a.saveConfig(), a.notify(1, "Saved %s", f.host.Alias))
 	}
 
 	var file *sshconfig.File
@@ -235,7 +267,7 @@ func (a *App) saveForm() tea.Cmd {
 	if f.host != nil {
 		old = f.host.Alias
 	}
-	return a.writeFile(file, savedMsg{alias: fields.Alias, oldAlias: old}, fields.Alias)
+	return a.writeFile(file, savedMsg{alias: fields.Alias, oldAlias: old, meta: meta}, fields.Alias)
 }
 
 func (a *App) deleteHost() tea.Cmd {
@@ -312,9 +344,18 @@ func (a *App) handleSaved(msg savedMsg) tea.Cmd {
 		_ = a.hist.Rename(msg.oldAlias, msg.alias)
 		cmds = append(cmds, a.saveConfig())
 	}
-	if msg.deleted {
+	switch {
+	case msg.deleted:
 		a.cfg.SetPinned(msg.alias, false)
 		a.cfg.SetHidden(msg.alias, false)
+		a.cfg.SetMeta(msg.alias, config.HostMeta{})
+		cmds = append(cmds, a.saveConfig())
+	case msg.oldAlias != "" && !strings.EqualFold(msg.oldAlias, msg.alias):
+		a.cfg.SetMeta(msg.oldAlias, config.HostMeta{})
+		a.cfg.SetMeta(msg.alias, msg.meta)
+		cmds = append(cmds, a.saveConfig())
+	case !sameMeta(a.cfg.Meta(msg.alias), msg.meta):
+		a.cfg.SetMeta(msg.alias, msg.meta)
 		cmds = append(cmds, a.saveConfig())
 	}
 	a.loadSSH()
@@ -356,6 +397,9 @@ func (a *App) renderForm() string {
 	lines = append(lines, "")
 
 	for i := range f.inputs {
+		if i == fTags {
+			lines = append(lines, "", "  "+st.dim.Render("quick-ssh's own, kept in config.toml"))
+		}
 		in := f.inputs[i]
 		in.SetWidth(inputW)
 		label := st.dim.Render(fieldLabels[i])

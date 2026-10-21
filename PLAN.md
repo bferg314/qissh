@@ -8,7 +8,7 @@ qs oak            # connect straight away (exact or unique fuzzy match), else op
 qs -              # reconnect to the last host
 ```
 
-This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1 and M2 done; M3's new, edit and delete done early (`qs add` still to come).**
+This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1, M2 and M4 done; M3's new, edit and delete done early (`qs add` still to come).**
 
 ## 1. Goals and non-goals
 
@@ -325,3 +325,8 @@ Made while building:
 16. **Login checks run `exit 0`**, which works in sh, cmd and PowerShell, and any exit status other than ssh's own 255 counts as a working login. They use `BatchMode=yes`, `ConnectTimeout=8` and a 20 s hard limit, and run with no terminal (a new session on Unix, no console on Windows), because BatchMode isn't passed on to a ProxyJump's inner ssh.
 17. **Host keys are fetched with a throwaway known_hosts** (`StrictHostKeyChecking=accept-new` into a temp file), so the key goes through ProxyJump like a real connection. Trusting appends exactly the lines ssh wrote for the key that was shown, rather than accepting whatever the host presents on the next connect.
 18. **`qs check` has `--login`** rather than always logging in, so the default is safe to run from a prompt or cron.
+19. **Keys are read, never decoded.** Type, size and fingerprint come from parsing the `.pub` file (the fingerprint matches `ssh-keygen -l`); whether a private key has a passphrase comes from its header alone (the cipher name in an OpenSSH key, `Proc-Type`/`ENCRYPTED` in PEM). No private key material is parsed and nothing is run per key.
+20. **ssh-keygen and ssh-add come from beside the ssh in use**, so they match it. On Windows this matters for the agent: Git's ssh-add only knows `SSH_AUTH_SOCK` and can't reach the Windows `ssh-agent` service, so the Keys tab says which situation you're in and how to fix it.
+21. **Copying a key runs in the terminal** (like `stay_open` sessions) so ssh can ask for passwords, one host after another under a heading each, and waits for enter only if one failed. The key goes in by its base64 blob, so a copy with another comment counts as already there. Linux and macOS get an `sh -c` script with the key as an argument (safe under bash, zsh and fish, with `umask 077`, a newline fix and `restorecon`); Windows gets PowerShell as `-EncodedCommand`, which needs no quoting under cmd.exe or PowerShell, and picks `administrators_authorized_keys` (with its required ACL) for members of Administrators. Which one a host gets comes from Tailscale's OS, and `w` in the confirmation overrides it. Each host's login is checked afterwards.
+22. **`C` from the Keys tab picks hosts on the Hosts tab** (a banner, `space` to select, `C` to copy) rather than in a popup list, so filtering and selection work as usual.
+23. **Metadata is edited in the host form**, below the ssh fields, and saved to `config.toml` only; a form that changes only metadata never touches the ssh config. Renaming a host moves its metadata and deleting the host drops it. Tags are lowercase and filter with `/#tag`.

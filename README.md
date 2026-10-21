@@ -43,17 +43,21 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 - `space` selects several hosts and `enter` opens one tab each (inside zellij or Windows Terminal). `a` selects all and `esc` clears the selection.
 - `m` lists everything you can do to the host, with each action's key.
 - `y` copies the ssh command, alias, hostname, `user@hostname` or the host's whole block.
-- `n` adds a host and `e` edits the selected one: alias, HostName, User, Port, IdentityFile and ProxyJump. The edit form also has **Delete host**, which asks first.
+- `n` adds a host and `e` edits the selected one: alias, HostName, User, Port, IdentityFile and ProxyJump, plus tags, a web page and notes. The edit form also has **Delete host**, which asks first.
 - `E` opens the file that defines the host in your editor, at the host's line. quick-ssh notices when the file changes, whether you edit it from here or anywhere else, and reloads.
+- `C` copies one of your public keys to the host, or to every selected host (see [The Keys tab](#the-keys-tab)).
+- `w` opens the host's web page.
+- `*` pins a host to the top, `h` hides one, `H` shows hidden hosts.
+- `s` sorts by most used, name or file order. `r` reloads.
+- Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), `f` starts `sftp`, and `M` starts `mosh` when it's installed.
+
+**Tags, web page and notes** are quick-ssh's own and are kept in its `config.toml`, never in your ssh config. Tags show in a TAGS column and in the filter: `/home` finds hosts tagged `home` as well as matching names, and `/#home` finds only tagged ones. The web page (`http://oak:8123`, or just `oak:8123`) opens with `w`, and notes show in the detail pane. Renaming a host keeps them; deleting it drops them.
 
 ### How quick-ssh edits your config
 
 Edits change as little as possible. A changed value rewrites only its own line, in the style it was written: `hostname` stays lowercase, `user=alice` keeps its `=`, and trailing comments stay. A new option goes at the end of the host's block with the block's indent. Other options in the block, comments, blank lines and the rest of the file are untouched. New hosts go before the first `Host *` (or other pattern) or `Match` block, because ssh uses the first value it finds and a host after `Host *` would lose to its defaults. Deleting a host removes its block and the comment lines directly above it. If the block also names other hosts (`Host oak oak2`), only that name is removed.
 
 Every save is checked first. quick-ssh writes the new file next to the old one and asks `ssh -F <new file> -G` to read it. If ssh rejects it, nothing is written and you see ssh's message. It then backs up the old file, to `backups` in quick-ssh's cache folder (the last 10 are kept) and to `config.qs-bak` beside it, swaps the new file in and checks it once more. If the file changed on disk while you were editing, the save is refused rather than overwriting that change.
-- `*` pins a host to the top, `h` hides one, `H` shows hidden hosts.
-- `s` sorts by most used, name or file order. `r` reloads.
-- Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), `f` starts `sftp`, and `M` starts `mosh` when it's installed.
 
 ### Is it up?
 
@@ -75,6 +79,24 @@ From the shell, `qs check` prints the same status for every host (or the ones yo
 On terminals at least 100 columns wide, a pane beside the list shows the selected host's hostname, user, port, key, jump host and port forwards. Any value that doesn't come from the host's own block says where it does come from, such as `from Host *`, `from line 27` (another block for the same host) or `default` (ssh's built-in value). Below that are your connection history, the file and line that define the host, and the block as written. `d` hides the pane, or on narrower terminals shows it full screen. `J`/`K` scroll it.
 
 Press `?` for every key.
+
+## The Keys tab
+
+Every key pair in `~/.ssh`: its type and size, fingerprint and comment, whether it has a passphrase (**⚠ none** if not), whether the agent has it loaded, and which hosts use it (by `IdentityFile`, or ssh's default key names). quick-ssh reads the public key files and only the header of each private key, to see whether it's encrypted.
+
+- `n` makes a new key with `ssh-keygen` (ed25519 unless you pick ecdsa or rsa), named so it doesn't overwrite one you have. ssh-keygen asks for the passphrase itself.
+- `A` adds the key to the agent with `ssh-add`, which asks for the passphrase. If there's no agent, the tab says why and how to start one. On Windows that depends on which ssh is first on your PATH: Windows' own uses the `ssh-agent` service (which is disabled until you enable it), while Git's uses `SSH_AUTH_SOCK` and can't reach that service.
+- `C` copies the public key to hosts: pick them on the Hosts tab (`space` selects, `C` copies to the selected hosts or the one under the cursor, `esc` cancels).
+- `y` copies the public key to the clipboard. `enter` lists everything you can do to the key.
+
+### Copying a key to a host
+
+There's no `ssh-copy-id` on Windows, so quick-ssh does the same job itself. Before anything runs it shows where the key will go on each host. Then it hands the terminal to ssh, one host at a time, so ssh can ask for passwords. The key is added only if it isn't there already (matched by the key itself, not the comment).
+
+- **Linux, macOS, BSD:** appended to `~/.ssh/authorized_keys`, creating the folder and file readable only by you if they don't exist.
+- **Windows (OpenSSH Server):** members of Administrators log in with `C:\ProgramData\ssh\administrators_authorized_keys`, so the key goes there and that file is limited to Administrators and SYSTEM, as sshd requires. Everyone else uses `~\.ssh\authorized_keys`. quick-ssh treats a host as Windows when Tailscale says it runs Windows; `w` in the confirmation changes that.
+
+Afterwards each host's login is checked (as with `t`), so you can see the key works. If a host failed, quick-ssh waits for `enter` before returning so you can read why.
 
 ## Where sessions open
 
@@ -103,6 +125,11 @@ check_timeout = "2s"
 tailscale = true
 pinned = ["oak"]                # set with * on the Hosts tab
 hidden = []                     # set with h
+
+[hosts.oak]                     # set in the host form (e)
+tags = ["home", "pi"]
+notes = "RAID 5, 4 × 8 TB; on the UPS"
+web = "http://oak:8123"
 
 [[tools]]
 name = "VS Code"
@@ -134,4 +161,4 @@ go test ./...
 
 ## Status
 
-quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), and adding, editing and deleting hosts (the core of M3, pulled forward). Next: the Keys tab (M4). The Discover and Keys tabs are placeholders until M5 and M4.
+quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts (the core of M3, pulled forward), and keys, copying them to hosts, and tags and notes (M4). Next: the Discover tab (M5), which is a placeholder until then.

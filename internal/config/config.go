@@ -86,7 +86,9 @@ type Config struct {
 	// host aliases.
 	Pinned []string `toml:"pinned"`
 	Hidden []string `toml:"hidden"`
-	Tools  []Tool   `toml:"tools"`
+	// Hosts holds tags, notes and a web page per host, keyed by alias.
+	Hosts map[string]*HostMeta `toml:"hosts,omitempty"`
+	Tools []Tool               `toml:"tools"`
 }
 
 // Path returns the location of the config file.

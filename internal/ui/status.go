@@ -191,6 +191,13 @@ func (a *App) checkLogins() tea.Cmd {
 			aliases = []string{h.Alias}
 		}
 	}
+	return a.checkLoginsFor(aliases)
+}
+
+// checkLoginsFor tries logging in to each alias. A single host's result
+// is shown in full (with the host key fix when it needs one); several are
+// summed up once all are done.
+func (a *App) checkLoginsFor(aliases []string) tea.Cmd {
 	if len(aliases) == 0 {
 		return nil
 	}

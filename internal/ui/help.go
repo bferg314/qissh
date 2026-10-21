@@ -41,6 +41,7 @@ func (a *App) renderHelp() string {
 		row("↑↓ / j k", "move"),
 		row("pgup/pgdn", "page"),
 		row("/", "filter hosts (enter connects to one)"),
+		row("/#tag", "filter by tag"),
 		row("?", "this help"),
 		row("q", "quit"),
 		"",
@@ -55,10 +56,19 @@ func (a *App) renderHelp() string {
 		row("d", "show / hide the detail pane"),
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
 		row("t", "check login (fixes changed host keys)"),
+		row("C", "copy one of your keys to the host"),
+		row("w", "open the host's web page"),
 		row("s", "sort: most used · name · file · status"),
 		row("* / h", "pin to the top · hide"),
 		row("H", "show / hide hidden hosts"),
 		row("r", "reload the config and re-check hosts"),
+		"",
+		title("Keys"),
+		row("n", "new key (ssh-keygen)"),
+		row("C", "copy the key to hosts"),
+		row("A", "add it to the agent"),
+		row("y", "copy the public key"),
+		row("enter", "everything you can do to it"),
 	}
 
 	right := []string{title("Tools")}

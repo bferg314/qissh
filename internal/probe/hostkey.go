@@ -95,7 +95,7 @@ func ScanHostKey(ctx context.Context, r run.Runner, o resolve.Options, alias str
 			hk.newLines = append(hk.newLines, l)
 		}
 	}
-	keygen := keygenFor(o)
+	keygen := o.Tool("ssh-keygen")
 	if fp, err := r.Output(ctx, keygen, "-l", "-f", scanned); err == nil {
 		hk.New = fingerprint.FindAllString(string(fp), -1)
 	}
@@ -112,7 +112,7 @@ func Trust(ctx context.Context, r run.Runner, o resolve.Options, hk *HostKey) er
 		return fmt.Errorf("no host key to trust")
 	}
 	if len(hk.Old) > 0 {
-		if _, err := r.Output(ctx, keygenFor(o), "-R", hk.Name, "-f", hk.KnownHosts); err != nil {
+		if _, err := r.Output(ctx, o.Tool("ssh-keygen"), "-R", hk.Name, "-f", hk.KnownHosts); err != nil {
 			return fmt.Errorf("removing the old key: %w", err)
 		}
 	}
@@ -137,15 +137,4 @@ func Trust(ctx context.Context, r run.Runner, o resolve.Options, hk *HostKey) er
 func endsWithNewline(path string) bool {
 	data, err := os.ReadFile(path)
 	return err == nil && (len(data) == 0 || data[len(data)-1] == '\n')
-}
-
-// keygenFor is the ssh-keygen that goes with the ssh being used: beside
-// it when ssh is a path, otherwise whichever is on PATH.
-func keygenFor(o resolve.Options) string {
-	p := o.Program()
-	if strings.ContainsAny(p, `/\`) {
-		ext := filepath.Ext(p)
-		return filepath.Join(filepath.Dir(p), "ssh-keygen"+ext)
-	}
-	return "ssh-keygen"
 }
