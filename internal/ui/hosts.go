@@ -276,6 +276,15 @@ func (a *App) hostsKey(key string) tea.Cmd {
 		a.toggleDetails()
 	case "y":
 		return a.copyCurrent()
+	case "n":
+		return a.openForm(nil)
+	case "e":
+		if r := t.current(); r != nil && r.rule != nil {
+			return a.edit(r.rule.Location)
+		}
+		if h := t.currentHost(); h != nil {
+			return a.openForm(h)
+		}
 	case "E":
 		return a.editCurrent()
 	case "*":

@@ -58,7 +58,8 @@ type Options struct {
 	Timeout    time.Duration
 }
 
-func (o Options) program() string {
+// Program is the ssh to run.
+func (o Options) Program() string {
 	if o.SSH == "" {
 		return "ssh"
 	}
@@ -86,7 +87,7 @@ func One(ctx context.Context, r run.Runner, o Options, alias string) *Resolved {
 		defer cancel()
 	}
 	args := append([]string{"-G"}, o.Args(alias)...)
-	out, err := r.Output(ctx, o.program(), args...)
+	out, err := r.Output(ctx, o.Program(), args...)
 	if err != nil {
 		return &Resolved{Err: err}
 	}

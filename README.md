@@ -42,7 +42,14 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 - `space` selects several hosts and `enter` opens one tab each (inside zellij or Windows Terminal). `a` selects all and `esc` clears the selection.
 - `m` lists everything you can do to the host, with each action's key.
 - `y` copies the ssh command, alias, hostname, `user@hostname` or the host's whole block.
+- `n` adds a host and `e` edits the selected one: alias, HostName, User, Port, IdentityFile and ProxyJump. The edit form also has **Delete host**, which asks first.
 - `E` opens the file that defines the host in your editor, at the host's line. quick-ssh notices when the file changes, whether you edit it from here or anywhere else, and reloads.
+
+### How quick-ssh edits your config
+
+Edits change as little as possible. A changed value rewrites only its own line, in the style it was written: `hostname` stays lowercase, `user=alice` keeps its `=`, and trailing comments stay. A new option goes at the end of the host's block with the block's indent. Other options in the block, comments, blank lines and the rest of the file are untouched. New hosts go before the first `Host *` (or other pattern) or `Match` block, because ssh uses the first value it finds and a host after `Host *` would lose to its defaults. Deleting a host removes its block and the comment lines directly above it. If the block also names other hosts (`Host oak oak2`), only that name is removed.
+
+Every save is checked first. quick-ssh writes the new file next to the old one and asks `ssh -F <new file> -G` to read it. If ssh rejects it, nothing is written and you see ssh's message. It then backs up the old file, to `backups` in quick-ssh's cache folder (the last 10 are kept) and to `config.qs-bak` beside it, swaps the new file in and checks it once more. If the file changed on disk while you were editing, the save is refused rather than overwriting that change.
 - `*` pins a host to the top, `h` hides one, `H` shows hidden hosts.
 - `s` sorts by most used, name or file order. `r` reloads.
 - Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), `f` starts `sftp`, and `M` starts `mosh` when it's installed.
@@ -110,4 +117,4 @@ go test ./...
 
 ## Status
 
-quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1). Next: showing which hosts are up, a login check and a fix for changed host keys (M2), then adding and editing hosts from the dashboard (M3). The Discover and Keys tabs are placeholders until M5 and M4.
+quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1) and adding, editing and deleting hosts (the core of M3, pulled forward). Next: showing which hosts are up, a login check and a fix for changed host keys (M2). The Discover and Keys tabs are placeholders until M5 and M4.

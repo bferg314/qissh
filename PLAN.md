@@ -8,7 +8,7 @@ qs oak            # connect straight away (exact or unique fuzzy match), else op
 qs -              # reconnect to the last host
 ```
 
-This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0 and M1 done.**
+This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0 and M1 done; M3's new, edit and delete done early (`qs add` still to come).**
 
 ## 1. Goals and non-goals
 
@@ -319,3 +319,5 @@ Made while building:
 10. **Rules are rows.** `Host *`, other pattern blocks and `Match` blocks sit under "Defaults & rules" at the bottom of the Hosts list rather than in a separate view; `enter` on one opens it in the editor.
 11. **The config is watched** (modification times, every 2 s), so edits made in another pane or with `E` show up without pressing `r`.
 12. **`ssh` is whatever is first on PATH**, as in your shell. Under Git Bash on Windows that's Git's OpenSSH; under PowerShell it's Windows' own. quick-ssh doesn't pick one.
+13. **Editing is pulled forward from M3.** `n` and `e` open one form (alias, HostName, User, Port, IdentityFile, ProxyJump); `e` replaces the planned duplicate-on-`c`, and delete lives in the edit form (with a y/n confirm, since every save is backed up) instead of on `D`. Options the form doesn't manage are left in the block untouched.
+14. **New lines follow the file's style.** Keyword case (lowercase or `HostName`) comes from the block being edited, or from the whole file for a new block; indent from the block's first option; line endings from the file.

@@ -206,6 +206,10 @@ func (a *App) barMode() (string, color.Color) {
 	switch {
 	case a.help:
 		return "HELP", st.accent
+	case a.form != nil && a.form.host == nil:
+		return "NEW", st.green
+	case a.form != nil:
+		return "EDIT", st.yellow
 	case a.popup != nil:
 		return "ACTIONS", st.green
 	}

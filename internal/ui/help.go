@@ -49,6 +49,8 @@ func (a *App) renderHelp() string {
 		row("m", "everything you can do to the host"),
 		row("space / a", "select · select all"),
 		row("y", "copy the ssh command, hostname…"),
+		row("n", "new host"),
+		row("e", "edit the host, or delete it"),
 		row("E", "edit its block in your editor"),
 		row("d", "show / hide the detail pane"),
 		row("J / K", "scroll details (ctrl+d/u: half page)"),

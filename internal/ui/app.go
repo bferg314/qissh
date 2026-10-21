@@ -46,7 +46,7 @@ const watchInterval = 2 * time.Second
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "s": true, "m": true, "d": true, "y": true,
 	"j": true, "k": true, "J": true, "K": true, "1": true, "2": true, "3": true, "4": true,
-	"*": true, "h": true, "H": true, "E": true, "a": true, "space": true, "enter": true,
+	"*": true, "h": true, "H": true, "E": true, "e": true, "n": true, "a": true, "space": true, "enter": true,
 }
 
 // Options are what main hands the app.
@@ -60,6 +60,8 @@ type Options struct {
 	Filter string
 	// CmdFile is set when launched through the shell wrapper.
 	CmdFile string
+	// BackupDir is where config backups go; "" uses the OS cache folder.
+	BackupDir string
 }
 
 // Outcome is what to do once the TUI has exited.
@@ -95,6 +97,8 @@ type App struct {
 	spin       spinner.Model
 	spinning   bool
 	popup      *actionPopup
+	form       *hostForm
+	backupDir  string
 	help       bool
 	helpScroll int
 	toast      toast
@@ -135,16 +139,20 @@ type (
 // New builds the app and reads the ssh config.
 func New(o Options) *App {
 	a := &App{
-		cfg:      o.Config,
-		cfgPath:  o.ConfigPath,
-		runner:   o.Runner,
-		hist:     o.History,
-		cmdFile:  o.CmdFile,
-		st:       newStyles(true),
-		hosts:    newHostsTab(),
-		detail:   detailState{show: true},
-		resolved: map[string]*resolve.Resolved{},
-		sem:      make(chan struct{}, resolveWorkers),
+		cfg:       o.Config,
+		cfgPath:   o.ConfigPath,
+		runner:    o.Runner,
+		hist:      o.History,
+		cmdFile:   o.CmdFile,
+		st:        newStyles(true),
+		hosts:     newHostsTab(),
+		detail:    detailState{show: true},
+		resolved:  map[string]*resolve.Resolved{},
+		backupDir: o.BackupDir,
+		sem:       make(chan struct{}, resolveWorkers),
+	}
+	if a.backupDir == "" {
+		a.backupDir = backupDir()
 	}
 	if a.hist == nil {
 		a.hist = history.Load("")
@@ -248,7 +256,7 @@ func (a *App) resolving() bool {
 	return false
 }
 
-func (a *App) busy() bool { return a.resolving() }
+func (a *App) busy() bool { return a.resolving() || a.form != nil && a.form.saving }
 
 func (a *App) startSpinner() tea.Cmd {
 	if a.spinning {
@@ -288,6 +296,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.spin, cmd = a.spin.Update(msg)
 		return a, cmd
+
+	case savedMsg:
+		return a, a.handleSaved(msg)
 
 	case resolvedMsg:
 		if msg.gen == a.resGen {
@@ -339,7 +350,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleKey(msg)
 	}
 
-	// Let a focused filter receive anything else (pastes, cursor blink).
+	// Let a focused input receive anything else (pastes, cursor blink).
+	if a.form != nil {
+		return a, a.updateForm(msg)
+	}
 	return a, a.updateFilter(msg)
 }
 
@@ -351,6 +365,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if a.help {
 		a.helpKey(key)
 		return nil
+	}
+	if a.form != nil {
+		return a.formKey(msg)
 	}
 	if a.popup != nil {
 		return a.popupKey(key)
@@ -509,6 +526,8 @@ func (a *App) render() string {
 	switch {
 	case a.help:
 		overlay = a.renderHelp()
+	case a.form != nil:
+		overlay = a.renderForm()
 	case a.popup != nil:
 		overlay = a.renderPopup()
 	}

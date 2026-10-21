@@ -57,6 +57,7 @@ func (a *App) openActions() tea.Cmd {
 		add(t.Key, t.Name, strings.Join(append([]string{t.Cmd}, t.Args...), " "), func() tea.Cmd { return a.launch(t, h.Alias) })
 	}
 	add("y", "Copy…", "ssh command, hostname, block", a.copyCurrent)
+	add("e", "Edit…", "HostName, User, Port, key, jump; or delete", func() tea.Cmd { return a.openForm(h) })
 	add("E", "Edit in editor", config.TildePath(h.File.Path), func() tea.Cmd { return a.edit(h.Location) })
 	pinned, hidden := a.cfg.HostMarks()
 	if pinned[config.HostKey(h.Alias)] {

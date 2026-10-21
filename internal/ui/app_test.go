@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,13 @@ Host *
 type fakeRunner struct{}
 
 func (fakeRunner) Output(_ context.Context, _ string, args ...string) ([]byte, error) {
+	if len(args) == 4 && args[0] == "-F" && args[2] == "-G" {
+		// Validating a config before saving it.
+		if data, _ := os.ReadFile(args[1]); strings.Contains(string(data), "BADOPT") {
+			return nil, errors.New(args[1] + ": line 3: Bad configuration option: badopt")
+		}
+		return []byte("hostname x\n"), nil
+	}
 	alias := args[len(args)-1]
 	out := map[string]string{
 		"elm":     "hostname elm.lan\nuser root\nport 22\n",
@@ -72,7 +80,7 @@ func newTestApp(t *testing.T, w, h int) *testEnv {
 	cfg.SSHConfig = sshPath
 	cfg.ConnectMode = config.ConnectInPlace
 	hist := history.Load(filepath.Join(dir, "history.json"))
-	a := New(Options{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Runner: fakeRunner{}, History: hist})
+	a := New(Options{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Runner: fakeRunner{}, History: hist, BackupDir: filepath.Join(dir, "backups")})
 	a.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	resolveSync(a)
 	return &testEnv{a: a, sshPath: sshPath, hist: hist}
@@ -96,6 +104,10 @@ func press(a *App, keys ...string) {
 			a.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		case "tab":
 			a.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		case "shift+tab":
+			a.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+		case "ctrl+s":
+			a.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 		case "home":
 			a.Update(tea.KeyPressMsg{Code: tea.KeyHome})
 		case "end":
@@ -319,6 +331,9 @@ func TestEveryScreenFits(t *testing.T) {
 		"discover": func(a *App) { press(a, "2") },
 		"keys":     func(a *App) { press(a, "3") },
 		"settings": func(a *App) { press(a, "4") },
+		"new host": func(a *App) { press(a, "n") },
+		"edit":     func(a *App) { press(a, "e") },
+		"delete?":  func(a *App) { press(a, "e"); a.form.confirmDelete = true },
 	}
 	sizes := [][2]int{{40, 10}, {60, 15}, {80, 24}, {99, 30}, {100, 30}, {200, 50}}
 	for name, setup := range screens {

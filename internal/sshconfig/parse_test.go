@@ -77,9 +77,10 @@ func TestParseLine(t *testing.T) {
 		{"Compression", "compression", nil},
 	}
 	for _, c := range cases {
-		_, kw, args := parseLine(c.in)
-		if kw != c.keyword || !reflect.DeepEqual(args, c.args) {
-			t.Errorf("parseLine(%q) = %q %q, want %q %q", c.in, kw, args, c.keyword, c.args)
+		l := Line{Text: c.in}
+		parseLine(&l)
+		if l.Keyword != c.keyword || !reflect.DeepEqual(l.Args, c.args) {
+			t.Errorf("parseLine(%q) = %q %q, want %q %q", c.in, l.Keyword, l.Args, c.keyword, c.args)
 		}
 	}
 }
