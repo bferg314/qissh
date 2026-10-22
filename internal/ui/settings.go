@@ -104,6 +104,7 @@ func (a *App) settingItems() []settingItem {
 	}
 	items = append(items,
 		settingItem{section: "Appearance", label: "Powerline status bar", detail: "arrow separators; needs a Nerd Font", on: &a.cfg.Powerline},
+		settingItem{section: "Appearance", label: "Mouse", detail: "click, double-click to connect, scroll; Shift+drag selects text", on: &a.cfg.Mouse},
 	)
 	return items
 }

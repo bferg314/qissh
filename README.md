@@ -59,6 +59,12 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 
 **Tags, web page and notes** are QiSSH's own and are kept in its `config.toml`, never in your ssh config. Tags show in a TAGS column and in the filter: `/home` finds hosts tagged `home` as well as matching names, and `/#home` finds only tagged ones. The web page (`http://oak:8123`, or just `oak:8123`) opens with `w`, and notes show in the detail pane. Renaming a host keeps them; deleting it drops them.
 
+### Mouse
+
+Click a tab to switch to it and a host to move to it. Double-click connects, as `enter` does, and right-click opens the action menu (`m`). Clicking the space left of a host selects it, like `space`. The wheel moves through the list, or scrolls the detail pane when the pointer is over it. While a menu, help or the doctor is open, a click outside it closes it; a click outside a form does nothing, so what you typed isn't lost.
+
+While QiSSH has the mouse, your terminal's own text selection needs Shift held (Option in macOS Terminal and iTerm2). To turn the mouse off, untick **Mouse** in Settings or set `mouse = false`.
+
 ### How QiSSH edits your config
 
 Edits change as little as possible. A changed value rewrites only its own line, in the style it was written: `hostname` stays lowercase, `user=alice` keeps its `=`, and trailing comments stay. A new option goes at the end of the host's block with the block's indent. Other options in the block, comments, blank lines and the rest of the file are untouched. New hosts go before the first `Host *` (or other pattern) or `Match` block, because ssh uses the first value it finds and a host after `Host *` would lose to its defaults. Deleting a host removes its block and the comment lines directly above it. If the block also names other hosts (`Host oak oak2`), only that name is removed.
@@ -186,6 +192,7 @@ stay_open = false
 check_interval = "60s"          # "0" checks only at start and on r
 check_timeout = "2s"
 tailscale = true
+mouse = true                    # clicks and the wheel; Shift+drag still selects text
 pinned = ["oak"]                # set with * on the Hosts tab
 hidden = []                     # set with h
 

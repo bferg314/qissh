@@ -231,6 +231,15 @@ func (t *hostsTab) move(delta int) {
 	t.cursor = max(0, min(len(t.view)-1, t.cursor+delta))
 }
 
+// toggle selects or unselects a host row.
+func (t *hostsTab) toggle(r *row) {
+	if t.selected[r.key()] {
+		delete(t.selected, r.key())
+	} else {
+		t.selected[r.key()] = true
+	}
+}
+
 // clearSelection drops the space-selection; it reports whether there was one.
 func (t *hostsTab) clearSelection() bool {
 	if len(t.selected) == 0 {
@@ -276,11 +285,7 @@ func (a *App) hostsKey(key string) tea.Cmd {
 		return a.connectSelected()
 	case "space":
 		if r := t.current(); r != nil && r.host != nil {
-			if t.selected[r.key()] {
-				delete(t.selected, r.key())
-			} else {
-				t.selected[r.key()] = true
-			}
+			t.toggle(r)
 			t.move(1)
 		}
 	case "a":
@@ -438,6 +443,9 @@ func (a *App) renderHosts(w, h int) string {
 	t := &a.hosts
 	st := a.st
 	var lines []string
+	if len(t.view) > 0 {
+		a.addZone(zone{x: 0, y: 0, w: w, h: h, wheel: func(d int) tea.Cmd { t.move(d); return nil }})
+	}
 
 	if k := a.copyKey; k != nil {
 		lines = append(lines, " "+st.warn.Render("Copy "+k.Name+" to which hosts?")+st.dim.Render(" space selects · ")+
@@ -515,18 +523,20 @@ func (a *App) renderHosts(w, h int) string {
 
 	// Lay out every row, then scroll so the cursor stays in view.
 	var body []string
+	var rowOf []int // the view index of each body line; -1 for headings
 	cursorLine := 0
 	for i, r := range t.view {
 		if r.rule != nil && (i == 0 || t.view[i-1].rule == nil) {
 			if i > 0 {
-				body = append(body, "")
+				body, rowOf = append(body, ""), append(rowOf, -1)
 			}
 			body = append(body, "    "+st.colHead.Render("DEFAULTS & RULES")+st.faintText.Render("  apply to the hosts above · enter edits"))
+			rowOf = append(rowOf, -1)
 		}
 		if i == t.cursor {
 			cursorLine = len(body)
 		}
-		body = append(body, a.hostLine(r, i == t.cursor, c, w))
+		body, rowOf = append(body, a.hostLine(r, i == t.cursor, c, w)), append(rowOf, i)
 	}
 	if cursorLine < t.offset {
 		t.offset = cursorLine
@@ -539,8 +549,42 @@ func (a *App) renderHosts(w, h int) string {
 		t.offset--
 	}
 	t.offset = max(0, min(t.offset, len(body)-h))
-	lines = append(lines, body[t.offset:min(len(body), t.offset+h)]...)
+	end := min(len(body), t.offset+h)
+	for j := t.offset; j < end; j++ {
+		if rowOf[j] >= 0 {
+			a.hostRowZones(rowOf[j], len(lines)+j-t.offset, w)
+		}
+	}
+	lines = append(lines, body[t.offset:end]...)
 	return strings.Join(lines, "\n")
+}
+
+// hostRowZones makes row i of the view, drawn at line y, clickable: a
+// click puts the cursor on it, a double click is enter, a right click is
+// m, and a click on the mark column selects it as space does.
+func (a *App) hostRowZones(i, y, w int) {
+	t := &a.hosts
+	pick := func() {
+		if t.filter.Focused() {
+			t.filter.Blur()
+			a.refresh()
+		}
+		if i < len(t.view) {
+			t.cursor = i
+		}
+	}
+	a.addZone(zone{x: 0, y: y, w: w, h: 1,
+		click: func() tea.Cmd { pick(); return nil },
+		dbl:   func() tea.Cmd { pick(); return a.hostsKey("enter") },
+		right: func() tea.Cmd { pick(); return a.openActions() },
+	})
+	if r := t.view[i]; r.host != nil {
+		a.addZone(zone{x: 0, y: y, w: markW, h: 1, click: func() tea.Cmd {
+			pick()
+			t.toggle(r)
+			return nil
+		}})
+	}
 }
 
 // markW is the cursor marker and the pin/hidden/selected mark.

@@ -82,6 +82,9 @@ type Config struct {
 	// Powerline draws the status bar with arrow separators, which need a
 	// Nerd Font or Powerline-patched font.
 	Powerline bool `toml:"powerline"`
+	// Mouse lets the mouse click, double-click and scroll. While it's on,
+	// selecting text in the terminal needs Shift (Option on macOS).
+	Mouse bool `toml:"mouse"`
 	// Pinned hosts sort to the top and Hidden ones are left out. Both hold
 	// host aliases.
 	Pinned []string `toml:"pinned"`
@@ -206,6 +209,7 @@ func Default() *Config {
 		CheckInterval: "60s",
 		CheckTimeout:  "2s",
 		Tailscale:     true,
+		Mouse:         true,
 		Tools: []Tool{
 			{Name: "VS Code", Cmd: "code", Args: []string{"--remote", "ssh-remote+{alias}", "{home}"}, Key: "o", Mode: ModeDetach},
 			{Name: "SFTP", Cmd: "sftp", Args: []string{"{alias}"}, Key: "f", Mode: ModeTerminal},

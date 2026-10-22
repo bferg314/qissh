@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/qissh/internal/config"
@@ -112,14 +113,17 @@ func (a *App) detailScrollKey(key string) bool {
 func (a *App) paneWidth() int { return max(40, min(70, a.w*2/5)) }
 
 func (a *App) renderHostsBody(h int) string {
+	scroll := func(d int) tea.Cmd { a.scrollDetail(3 * d); return nil }
 	switch a.detailLayout() {
 	case layoutSide:
 		pw := a.paneWidth()
 		lw := a.w - pw
+		a.addZone(zone{x: lw, y: 0, w: pw, h: h, wheel: scroll})
 		return lipgloss.JoinHorizontal(lipgloss.Top,
 			padLines(a.renderHosts(lw, h), h, lw),
 			padLines(a.renderDetail(pw, h, true), h, pw))
 	case layoutFull:
+		a.addZone(zone{x: 0, y: 0, w: a.w, h: h, wheel: scroll})
 		return a.renderDetail(a.w, h, false)
 	}
 	return a.renderHosts(a.w, h)
