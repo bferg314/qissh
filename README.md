@@ -253,3 +253,7 @@ go test ./...
 ```
 
 [PLAN.md](PLAN.md) is the design QiSSH is built from, with the decisions made along the way. The screenshot above is drawn from a made-up set of hosts by `QS_SCREENSHOT=$PWD/docs/screenshot.html go test ./internal/ui -run TestScreenshot`; open the HTML file it writes in a browser to capture it.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
