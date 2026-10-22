@@ -29,13 +29,17 @@ QiSSH runs your own `ssh`, so the session is exactly what `ssh <alias>` gives yo
 
 ## Install
 
-QiSSH needs OpenSSH's `ssh` on your PATH, which is built into Windows 10 and later, macOS and most Linux distributions. To install it you need Go 1.26 or newer.
+QiSSH needs OpenSSH's `ssh` on your PATH, which is built into Windows 10 and later, macOS and most Linux distributions.
+
+Download the archive for your system from [Releases](https://github.com/bferg314/qissh/releases) and put `qissh` (`qissh.exe` on Windows) somewhere on your PATH. There are builds for Linux, macOS and Windows, on x86-64 and ARM.
+
+Or, with Go 1.26 or newer:
 
 ```sh
 go install github.com/bferg314/qissh/cmd/qissh@latest
 ```
 
-This puts `qissh` in `$(go env GOPATH)/bin` (`~/go/bin`, or `%USERPROFILE%\go\bin` on Windows). Make sure that folder is on your PATH.
+This puts `qissh` in `$(go env GOPATH)/bin` (`~/go/bin`, or `%USERPROFILE%\go\bin` on Windows). Make sure that folder is on your PATH. `qissh --version` says which version you have.
 
 ### The `qs` command
 

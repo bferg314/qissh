@@ -8,7 +8,7 @@ qs web1           # connect straight away (exact or unique fuzzy match), else op
 qs -              # reconnect to the last host
 ```
 
-This is the plan QiSSH is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0 to M6 and mouse support (decision 33) done; M7 next.**
+This is the plan QiSSH is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0 to M6 and mouse support (decision 33) done. M7: screens fit at every size, the README and screenshot, CI and GoReleaser are done; publishing the repository, a licence and the gup entry are left.**
 
 ## 1. Goals and non-goals
 

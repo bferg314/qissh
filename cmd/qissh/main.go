@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -31,7 +32,18 @@ import (
 	"github.com/bferg314/qissh/internal/ui"
 )
 
+// version is set by release builds (-X main.version=…). go install builds
+// get it from the module version instead.
 var version = "dev"
+
+func init() {
+	if version != "dev" {
+		return
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = strings.TrimPrefix(bi.Main.Version, "v")
+	}
+}
 
 // exitError carries ssh's exit code out of main.
 type exitError int
