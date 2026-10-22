@@ -455,7 +455,7 @@ func (a *App) discoverSources() []string {
 	switch {
 	case !a.cfg.Tailscale:
 		ts = st.dim.Render("Tailscale is off in Settings")
-	case !config.Available("tailscale"):
+	case !available("tailscale"):
 		ts = st.dim.Render("Tailscale isn't installed")
 	case a.checks.tsErr != nil:
 		ts = st.warn.Render("Tailscale: " + a.checks.tsErr.Error())

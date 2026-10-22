@@ -3,6 +3,8 @@ package ui
 import (
 	"os"
 	"os/exec"
+	"os/user"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
@@ -109,7 +111,7 @@ func (a *App) connect(aliases ...string) tea.Cmd {
 
 // launch runs tool t for alias.
 func (a *App) launch(t config.Tool, alias string) tea.Cmd {
-	if !config.Available(t.Cmd) {
+	if !available(t.Cmd) {
 		return a.notify(2, "%s: %q not found on PATH", t.Name, t.Cmd)
 	}
 	v := launcher.Vars{Alias: alias}
@@ -170,6 +172,24 @@ func (a *App) editCurrent() tea.Cmd {
 
 // writeClipboard writes the local clipboard; tests replace it.
 var writeClipboard = clipboard.WriteAll
+
+// available reports whether a command is on PATH, and localUser is who
+// you are on this machine (whom ssh logs in as when a host sets no User).
+// Tests replace both so they don't depend on the machine they run on.
+var (
+	available = config.Available
+	localUser = func() string {
+		u, err := user.Current()
+		if err != nil {
+			return ""
+		}
+		name := u.Username
+		if i := strings.LastIndexAny(name, `\/`); i >= 0 {
+			name = name[i+1:] // Windows: DOMAIN\user
+		}
+		return name
+	}
+)
 
 // copyText puts s on the clipboard: through the terminal (OSC 52, which
 // reaches your own machine even over SSH) and, when not over SSH, the

@@ -83,7 +83,7 @@ func (a *App) checkAll() tea.Cmd {
 }
 
 func (a *App) loadTailscale() tea.Cmd {
-	if !a.cfg.Tailscale || !config.Available("tailscale") {
+	if !a.cfg.Tailscale || !available("tailscale") {
 		a.checks.peers, a.checks.tsErr = nil, nil
 		return nil
 	}

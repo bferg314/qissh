@@ -133,6 +133,12 @@ func newTestApp(t *testing.T, w, h int) *testEnv {
 	old := writeClipboard
 	writeClipboard = func(string) error { return nil }
 	t.Cleanup(func() { writeClipboard = old })
+	// The same on every machine: Tailscale installed and nothing else, and
+	// a local user no test host uses.
+	oldAvailable, oldUser := available, localUser
+	available = func(cmd string) bool { return cmd == "tailscale" }
+	localUser = func() string { return "tester" }
+	t.Cleanup(func() { available, localUser = oldAvailable, oldUser })
 
 	dir := t.TempDir()
 	sshPath := filepath.Join(dir, "ssh_config")

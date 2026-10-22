@@ -76,7 +76,7 @@ func (a *App) settingItems() []settingItem {
 	ts := settingItem{section: "Status", label: "Tailscale", on: &a.cfg.Tailscale,
 		detail: "online state and last seen for hosts on your tailnet", refresh: true}
 	switch {
-	case !config.Available("tailscale"):
+	case !available("tailscale"):
 		ts.warn = "not installed"
 	case a.checks.tsErr != nil:
 		ts.warn = a.checks.tsErr.Error()
@@ -95,7 +95,7 @@ func (a *App) settingItems() []settingItem {
 			tool:    t,
 		}
 		switch {
-		case !config.Available(t.Cmd):
+		case !available(t.Cmd):
 			it.warn = "not installed"
 		case reservedKeys[t.Key]:
 			it.warn = "key " + t.Key + " is reserved"

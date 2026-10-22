@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"os/user"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -102,11 +101,7 @@ func (a *App) openForm(h *sshconfig.Host) tea.Cmd {
 
 // defaultUser is the user ssh uses when none is set: the local one.
 func (a *App) defaultUser() string {
-	if u, err := user.Current(); err == nil {
-		name := u.Username
-		if i := strings.LastIndexAny(name, `\/`); i >= 0 {
-			name = name[i+1:] // Windows: DOMAIN\user
-		}
+	if name := localUser(); name != "" {
 		return name
 	}
 	return "your local user"
