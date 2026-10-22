@@ -416,19 +416,50 @@ func TestEveryScreenFits(t *testing.T) {
 			_, c := a.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 			runCmd(a, c)
 		},
-		"doctor":     func(a *App) { press(a, "!") },
-		"tunnels":    func(a *App) { press(a, "T") },
-		"new tunnel": func(a *App) { press(a, "T", "n", "5432") },
-		"facts":      func(a *App) { _, c := a.Update(tea.KeyPressMsg{Code: 'i', Text: "i"}); runCmd(a, c); press(a, "d") },
-		"new host":   func(a *App) { press(a, "n") },
-		"edit":       func(a *App) { press(a, "e") },
-		"delete?":    func(a *App) { press(a, "e"); a.form.confirmDelete = true },
+		"doctor":      func(a *App) { press(a, "!") },
+		"tunnels":     func(a *App) { press(a, "T") },
+		"new tunnel":  func(a *App) { press(a, "T", "n", "5432") },
+		"facts":       func(a *App) { _, c := a.Update(tea.KeyPressMsg{Code: 'i', Text: "i"}); runCmd(a, c); press(a, "d") },
+		"new host":    func(a *App) { press(a, "n") },
+		"edit":        func(a *App) { press(a, "e") },
+		"delete?":     func(a *App) { press(a, "e"); a.form.confirmDelete = true },
+		"form error":  func(a *App) { press(a, "n", "web*"); saveKey(a) },
+		"device menu": func(a *App) { withDevices(t, a); press(a, "2", "m") },
+		"toast": func(a *App) {
+			a.notify(2, "Can't edit: %s", strings.Repeat("a very long reason ", 12))
+		},
 	}
-	sizes := [][2]int{{40, 10}, {60, 15}, {80, 24}, {99, 30}, {100, 30}, {200, 50}}
+	// Screens that need the fake runner set up first.
+	envScreens := map[string]func(e *testEnv){
+		"host key": func(e *testEnv) {
+			os.WriteFile(filepath.FromSlash(e.fake.knownHosts), []byte("oak.example.ts.net ssh-ed25519 AAAAOLD\n"), 0o600)
+			e.fake.logins["oak"] = changedBanner
+			e.a.hosts.focus("oak")
+			_, c := e.a.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+			runCmd(e.a, c)
+		},
+		"login detail": func(e *testEnv) {
+			e.fake.logins["oak"] = "Permission denied (publickey,password)."
+			e.a.hosts.focus("oak")
+			_, c := e.a.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+			runCmd(e.a, c)
+			press(e.a, "d")
+		},
+		"tunnel running": func(e *testEnv) {
+			e.a.hosts.focus("elm")
+			press(e.a, "T", "n", "5432", "tab", "pg", "ctrl+s")
+			press(e.a, "d")
+		},
+	}
 	for name, setup := range screens {
+		envScreens[name] = func(e *testEnv) { setup(e.a) }
+	}
+	sizes := [][2]int{{40, 10}, {60, 15}, {80, 24}, {99, 30}, {100, 30}, {200, 40}, {200, 50}}
+	for name, setup := range envScreens {
 		for _, sz := range sizes {
-			a := newTestApp(t, sz[0], sz[1]).a
-			setup(a)
+			e := newTestApp(t, sz[0], sz[1])
+			a := e.a
+			setup(e)
 			lines := strings.Split(a.render(), "\n")
 			if len(lines) != sz[1] {
 				t.Errorf("%s at %dx%d: %d lines", name, sz[0], sz[1], len(lines))
