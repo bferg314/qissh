@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -118,7 +119,13 @@ func TestFactsCommandThroughShell(t *testing.T) {
 	}
 }
 
+// The Windows facts command, run by Windows PowerShell. PowerShell on
+// Linux or macOS lacks the Windows cmdlets it uses, so it's only run on
+// Windows.
 func TestWindowsFactsRuns(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("needs Windows")
+	}
 	ps, err := exec.LookPath("powershell")
 	if err != nil {
 		t.Skip("no PowerShell")
