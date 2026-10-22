@@ -2,3 +2,6 @@
 /qissh.exe
 /dist/
 *~
+
+# drawn by TestScreenshot, captured into docs/screenshot.png
+docs/*.html

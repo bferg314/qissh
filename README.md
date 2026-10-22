@@ -1,17 +1,27 @@
 # QiSSH
 
-*Qi, as in chi: the energy that flows between things.*
+*Qi, as in chi: the energy of ssh that flows between things.*
 
 A terminal dashboard for the hosts in your `~/.ssh/config`. Pick one and you're connected. It also shows what ssh will actually use for each host and where in the file every value comes from.
 
+![QiSSH's Hosts tab: six hosts with their status, target, tags and last connection, and the detail pane for web1](docs/screenshot.png)
+
+- **See which hosts are up** at a glance, including through jump hosts and on your Tailscale tailnet, and check that key logins work.
+- **Connect with a key press or a double-click**, in this terminal or a new zellij or Windows Terminal tab.
+- **Add, edit and delete hosts** without opening the file. Comments, formatting and everything else in it are kept, every save is checked by ssh first, and the old file is backed up.
+- **Manage keys**: make them, load them into the agent, and copy them to hosts (Linux, macOS and Windows hosts alike).
+- **Find machines to add** from your tailnet and `known_hosts`.
+- **Work across hosts**: run a command on many at once, start port forwards, fetch facts (OS, load, disk, pending updates), and find mistakes in your config.
+- Works the same on Windows, macOS and Linux, with the keyboard or the mouse.
+
 ```
 qs                # the dashboard
-qs oak            # connect: an exact alias, or the only fuzzy match ("qs gar" → garage-pi)
+qs web1           # connect: an exact alias, or the only fuzzy match ("qs gar" → garage-pi)
 qs -              # reconnect to the last host
 qs ls             # list hosts (--json, --names)
 qs check          # which hosts are up (--login also tries logging in)
 qs doctor         # mistakes in your ssh config
-qs add box me@box.lan:2222 -i ~/.ssh/id_box -J elm
+qs add db deploy@db.internal:2222 -i ~/.ssh/id_deploy -J bastion
                   # add a host without opening the dashboard
 ```
 
@@ -19,7 +29,7 @@ QiSSH runs your own `ssh`, so the session is exactly what `ssh <alias>` gives yo
 
 ## Install
 
-You need Go 1.26 or newer and OpenSSH's `ssh` on your PATH (built into Windows 10 and later, macOS and most Linux distributions).
+QiSSH needs OpenSSH's `ssh` on your PATH, which is built into Windows 10 and later, macOS and most Linux distributions. To install it you need Go 1.26 or newer.
 
 ```sh
 go install github.com/bferg314/qissh/cmd/qissh@latest
@@ -57,7 +67,7 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 - `s` sorts by most used, name or file order. `r` reloads.
 - Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), `f` starts `sftp`, and `M` starts `mosh` when it's installed.
 
-**Tags, web page and notes** are QiSSH's own and are kept in its `config.toml`, never in your ssh config. Tags show in a TAGS column and in the filter: `/home` finds hosts tagged `home` as well as matching names, and `/#home` finds only tagged ones. The web page (`http://oak:8123`, or just `oak:8123`) opens with `w`, and notes show in the detail pane. Renaming a host keeps them; deleting it drops them.
+**Tags, web page and notes** are QiSSH's own and are kept in its `config.toml`, never in your ssh config. Tags show in a TAGS column and in the filter: `/home` finds hosts tagged `home` as well as matching names, and `/#home` finds only tagged ones. The web page (`http://nas:5000`, or just `nas:5000`) opens with `w`, and notes show in the detail pane. Renaming a host keeps them; deleting it drops them.
 
 ### Mouse
 
@@ -69,7 +79,7 @@ While QiSSH has the mouse, your terminal's own text selection needs Shift held (
 
 ### How QiSSH edits your config
 
-Edits change as little as possible. A changed value rewrites only its own line, in the style it was written: `hostname` stays lowercase, `user=alice` keeps its `=`, and trailing comments stay. A new option goes at the end of the host's block with the block's indent. Other options in the block, comments, blank lines and the rest of the file are untouched. New hosts go before the first `Host *` (or other pattern) or `Match` block, because ssh uses the first value it finds and a host after `Host *` would lose to its defaults. Deleting a host removes its block and the comment lines directly above it. If the block also names other hosts (`Host oak oak2`), only that name is removed.
+Edits change as little as possible. A changed value rewrites only its own line, in the style it was written: `hostname` stays lowercase, `user=deploy` keeps its `=`, and trailing comments stay. A new option goes at the end of the host's block with the block's indent. Other options in the block, comments, blank lines and the rest of the file are untouched. New hosts go before the first `Host *` (or other pattern) or `Match` block, because ssh uses the first value it finds and a host after `Host *` would lose to its defaults. Deleting a host removes its block and the comment lines directly above it. If the block also names other hosts (`Host nas storage`), only that name is removed.
 
 Every save is checked first. QiSSH writes the new file next to the old one and asks `ssh -F <new file> -G` to read it. If ssh rejects it, nothing is written and you see ssh's message. It then backs up the old file, to `backups` in QiSSH's cache folder (the last 10 are kept) and to `config.qs-bak` beside it, swaps the new file in and checks it once more. If the file changed on disk while you were editing, the save is refused rather than overwriting that change.
 
@@ -80,7 +90,7 @@ Every save is checked first. QiSSH writes the new file next to the old one and a
 The **STATUS** column shows each host as `● 12ms` (up, with the time to connect), `○ refused` / `○ timeout` / `○ no dns` (down), or `◌` while it's being checked. QiSSH checks every host when it starts and every 60 seconds while it's open (change that under **Check every** in Settings). It never logs in to do this: it only opens a TCP connection to the ssh port and closes it again.
 
 - **Tailscale:** if `tailscale` is installed and connected, hosts whose HostName is a tailnet machine (by MagicDNS name, short name or Tailscale IP) use Tailscale's view, so a machine that's off shows `○ off 3d` (last seen 3 days ago) rather than timing out. The detail pane adds its OS.
-- **Jump hosts:** a host reached through `ProxyJump` can't be checked directly, so it shows its first jump host's state as `● via elm`.
+- **Jump hosts:** a host reached through `ProxyJump` can't be checked directly, so it shows its first jump host's state as `● via bastion`.
 - **Login check (`t`):** tries to log in to the selected host, or every selected host, with keys only and a short timeout, and runs `exit 0`. It never stops at a password or passphrase prompt. The result goes in the detail pane: login works, needs a password or passphrase, host key not known yet, host key changed, refused, timed out, or doesn't resolve.
 - **Host keys:** when the login check finds a host key that changed (`▲ host key!`) or that isn't known yet, it shows the fingerprint `known_hosts` has next to the one the host presents now, with a warning if the key changed. `y` trusts the new key: `ssh-keygen -R` removes the old one (keeping `known_hosts.old`) and exactly the key you were shown is added. To see the key, QiSSH connects using a throwaway known_hosts file, so nothing is trusted until you say so.
 
@@ -195,15 +205,15 @@ check_interval = "60s"          # "0" checks only at start and on r
 check_timeout = "2s"
 tailscale = true
 mouse = true                    # clicks and the wheel; Shift+drag still selects text
-pinned = ["oak"]                # set with * on the Hosts tab
+pinned = ["nas"]                # set with * on the Hosts tab
 hidden = []                     # set with h
 
-[hosts.oak]                     # set in the host form (e)
-tags = ["home", "pi"]
+[hosts.nas]                     # set in the host form (e)
+tags = ["home", "storage"]
 notes = "RAID 5, 4 × 8 TB; on the UPS"
-web = "http://oak:8123"
+web = "http://nas:5000"
 
-[[hosts.oak.tunnels]]           # saved with ctrl+s in a new tunnel (T, n)
+[[hosts.nas.tunnels]]           # saved with ctrl+s in a new tunnel (T, n)
 name = "grafana"
 spec = "L 3000:localhost:3000"
 
@@ -231,13 +241,11 @@ Tool arguments can use `{alias}`, `{hostname}`, `{user}`, `{port}` and `{home}` 
 
 Connection history (`history.json`) and host facts (`facts.json`) are kept in your OS cache folder.
 
-## Build
+## Development
 
 ```
 go build ./cmd/qissh
 go test ./...
 ```
 
-## Status
-
-QiSSH is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts, from the dashboard or with `qs add` (M3), keys, copying them to hosts, and tags and notes (M4), the Discover tab (M5), and tunnels, running commands on many hosts, facts and the config doctor (M6). Next: polish and releases (M7).
+[PLAN.md](PLAN.md) is the design QiSSH is built from, with the decisions made along the way. The screenshot above is drawn from a made-up set of hosts by `QS_SCREENSHOT=$PWD/docs/screenshot.html go test ./internal/ui -run TestScreenshot`; open the HTML file it writes in a browser to capture it.

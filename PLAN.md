@@ -4,7 +4,7 @@ A terminal dashboard for the hosts in `~/.ssh/config`: see which are up, connect
 
 ```
 qs                # the dashboard
-qs oak            # connect straight away (exact or unique fuzzy match), else open the dashboard filtered to "oak"
+qs web1           # connect straight away (exact or unique fuzzy match), else open the dashboard filtered to "web1"
 qs -              # reconnect to the last host
 ```
 
@@ -190,16 +190,16 @@ stay_open = false
 check_interval = "60s"        # "0" turns background checks off
 check_timeout = "2s"
 tailscale = true
-pinned = ["oak", "devbox1"]
+pinned = ["nas", "db"]
 hidden = []
 powerline = false
 
 # Things ssh config has no place for, keyed by alias. Renaming a host in
 # qissh renames its entry here too.
-[hosts.oak]
-tags = ["home", "pi"]
+[hosts.nas]
+tags = ["home", "storage"]
 notes = "RAID 5, 4 × 8 TB; on the UPS"
-web = "http://oak.example.ts.net:8123"
+web = "http://nas.example.ts.net:5000"
 mac = "02:00:00:00:00:01"     # for wake-on-LAN (§10)
 
 [[tools]]
@@ -256,7 +256,7 @@ internal/
 
 Ordered by how much I think they'd be used. The first three are cheap given the design above.
 
-1. **Port forwards / tunnels.** Saved per host (`[[hosts.devbox1.tunnels]] name = "postgres", spec = "L 5432:localhost:5432"`), started with `T` as a background `ssh -N` (`ExitOnForwardFailure=yes`), listed in the status bar while they run and stopped when QiSSH quits (or kept, as a setting). A one-off "forward a port" form for ad-hoc ones.
+1. **Port forwards / tunnels.** Saved per host (`[[hosts.db.tunnels]] name = "postgres", spec = "L 5432:localhost:5432"`), started with `T` as a background `ssh -N` (`ExitOnForwardFailure=yes`), listed in the status bar while they run and stopped when QiSSH quits (or kept, as a setting). A one-off "forward a port" form for ad-hoc ones.
 2. **Run on many hosts (`x`).** Type a command, run it on every selected host in parallel (`BatchMode`), and see the output grouped by host with exit codes, failures first. Saved **snippets** per host or tag (`sudo apt update && sudo apt upgrade -y`, `docker ps`, `df -h`).
 3. **Host-key-changed helper** (in §4) and **config doctor** (`!`), like dockgit's: duplicate aliases, hosts shadowed by an earlier wildcard, `IdentityFile`s that don't exist, keys without a passphrase, a world-writable config, a `ProxyJump` to an alias that doesn't exist, new hosts placed after `Host *`. Each finding has a one-line fix.
 4. **Wake-on-LAN** (`W`) for a down host with a `mac`, sent from this machine or relayed through another host on the same LAN.

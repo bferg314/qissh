@@ -41,7 +41,7 @@ func LoadAgent(ctx context.Context, r run.Runner, sshAdd string) Agent {
 		}
 	default:
 		a.Running = true
-		// "256 SHA256:abc… alice@elm (ED25519)"
+		// "256 SHA256:abc… me@laptop (ED25519)"
 		for _, line := range strings.Split(text, "\n") {
 			if f := strings.Fields(line); len(f) >= 2 && strings.HasPrefix(f[1], "SHA256:") {
 				a.Fingerprints[f[1]] = true
