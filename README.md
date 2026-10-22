@@ -8,6 +8,7 @@ qs oak            # connect: an exact alias, or the only fuzzy match ("qs gar" �
 qs -              # reconnect to the last host
 qs ls             # list hosts (--json, --names)
 qs check          # which hosts are up (--login also tries logging in)
+qs doctor         # mistakes in your ssh config
 ```
 
 quick-ssh runs your own `ssh`, so the session is exactly what `ssh <alias>` gives you: agents, `ProxyJump`, `ControlMaster` and everything else in your config keep working. Your ssh config stays the source of truth.
@@ -47,6 +48,7 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 - `E` opens the file that defines the host in your editor, at the host's line. quick-ssh notices when the file changes, whether you edit it from here or anywhere else, and reloads.
 - `C` copies one of your public keys to the host, or to every selected host (see [The Keys tab](#the-keys-tab)).
 - `w` opens the host's web page.
+- `x` runs a command on the host, or on every selected host, `i` fetches its facts and `T` starts and stops its tunnels (see below).
 - `*` pins a host to the top, `h` hides one, `H` shows hidden hosts.
 - `s` sorts by most used, name or file order. `r` reloads.
 - Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), `f` starts `sftp`, and `M` starts `mosh` when it's installed.
@@ -76,9 +78,48 @@ From the shell, `qs check` prints the same status for every host (or the ones yo
 
 ### Detail pane
 
-On terminals at least 100 columns wide, a pane beside the list shows the selected host's hostname, user, port, key, jump host and port forwards. Any value that doesn't come from the host's own block says where it does come from, such as `from Host *`, `from line 27` (another block for the same host) or `default` (ssh's built-in value). Below that are your connection history, the file and line that define the host, and the block as written. `d` hides the pane, or on narrower terminals shows it full screen. `J`/`K` scroll it.
+On terminals at least 100 columns wide, a pane beside the list shows the selected host's hostname, user, port, key, jump host and port forwards. Any value that doesn't come from the host's own block says where it does come from, such as `from Host *`, `from line 27` (another block for the same host) or `default` (ssh's built-in value). Below that are the host's tunnels and facts, your connection history, the file and line that define the host, and the block as written. `d` hides the pane, or on narrower terminals shows it full screen. `J`/`K` scroll it.
 
 Press `?` for every key. `tab` and `←`/`→` (or `1`–`4`) switch tabs.
+
+### Running a command on many hosts
+
+`x` asks for a command and runs it on every selected host at once (or the host under the cursor). Then it shows each host's output with its exit status, failures first. `r` runs it again, `e` changes the command, and `y` copies all the output. ssh runs without a terminal and with keys only, so a command that prompts (such as `sudo` asking for a password) fails rather than hanging. Each host gets two minutes.
+
+In the prompt, `ctrl+s` saves the command as a snippet, `↑`/`↓` pick a saved snippet, and `ctrl+d` deletes one. Snippets are kept in `config.toml`.
+
+### Facts
+
+`i` asks the host (or every selected host) about itself with one ssh command: OS, kernel and architecture, uptime, load, memory, disk use of `/` (or `C:`), pending package updates and whether a reboot is needed. Updates are counted from what the package manager already knows (`apt-get -s`, `dnf --cacheonly`, `pacman -Qu`), so nothing is downloaded and nothing needs root. Windows hosts, as Tailscale reports them, are asked with PowerShell. Facts appear in the detail pane and are kept in `facts.json` in the cache folder, so you see the last ones (and how old they are) next time.
+
+### Tunnels
+
+`T` lists the host's saved tunnels: press a tunnel's number to start it, and press it again to stop it. `n` starts a new one. Write it the way you think of it:
+
+| You type | ssh gets |
+|---|---|
+| `5432` | `-L 5432:localhost:5432`: the host's port 5432 on `localhost:5432` here |
+| `8080:80` | `-L 8080:localhost:80` |
+| `8080:db:5432` | `-L 8080:db:5432`: a machine the host can reach |
+| `R 9000:localhost:3000` | `-R`: your port 3000 on the host's port 9000 |
+| `D 1080` | `-D 1080`: a SOCKS proxy through the host |
+
+`enter` starts it, and `ctrl+s` starts it and saves it to the host, in `config.toml`. Each tunnel is a background `ssh -N` that uses keys only, with `ExitOnForwardFailure`, so a port already in use or a failed login shows as an error rather than a tunnel that does nothing. The status bar counts running tunnels, and the detail pane marks them with `●`. They stop when quick-ssh exits.
+
+### Config doctor
+
+`!` (or `qs doctor`) lists mistakes in your ssh config. The status bar shows how many need fixing.
+
+- **Problems** (ssh fails or refuses):
+  - an `IdentityFile` that doesn't exist;
+  - on Linux and macOS, a config file that others can write to, or a private key that others can read.
+- **Warnings** (probably not what you meant):
+  - an option that's ignored because an earlier block, usually `Host *` at the top, sets it first;
+  - a `ProxyJump` through a name that isn't one of your hosts;
+  - an `Include` that can't be read.
+- **Notes**: a host defined in more than one block, or a key without a passphrase.
+
+Each finding says why it matters and how to fix it. `enter` opens the line in your editor and `y` copies the fix.
 
 ## The Discover tab
 
@@ -147,6 +188,13 @@ tags = ["home", "pi"]
 notes = "RAID 5, 4 × 8 TB; on the UPS"
 web = "http://oak:8123"
 
+[[hosts.oak.tunnels]]           # saved with ctrl+s in a new tunnel (T, n)
+name = "grafana"
+spec = "L 3000:localhost:3000"
+
+[[snippets]]                    # saved with ctrl+s in the run prompt (x)
+cmd = "df -h /"
+
 [[tools]]
 name = "VS Code"
 cmd = "code"
@@ -166,7 +214,7 @@ enabled = true
 
 Tool arguments can use `{alias}`, `{hostname}`, `{user}`, `{port}` and `{home}` (`/home/<user>`, or `/root`). Inside zellij, terminal tools open in a new tab unless they set `in_place = true`.
 
-Connection history is kept in `history.json` in your OS cache folder.
+Connection history (`history.json`) and host facts (`facts.json`) are kept in your OS cache folder.
 
 ## Build
 
@@ -177,4 +225,4 @@ go test ./...
 
 ## Status
 
-quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts (the core of M3, pulled forward), keys, copying them to hosts, and tags and notes (M4), and the Discover tab (M5). Next: tunnels, running a command on many hosts, and a doctor check (M6).
+quick-ssh is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts (the core of M3, pulled forward), keys, copying them to hosts, and tags and notes (M4), the Discover tab (M5), and tunnels, running commands on many hosts, facts and the config doctor (M6). Next: polish and releases (M7).

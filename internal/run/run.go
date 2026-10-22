@@ -55,3 +55,7 @@ func FirstLine(s string) string {
 	}
 	return ""
 }
+
+// NoTerminal makes cmd start without a terminal or console, so ssh can't
+// prompt behind the TUI.
+func NoTerminal(cmd *exec.Cmd) { noTerminal(cmd) }

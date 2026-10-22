@@ -53,6 +53,7 @@ func (a *App) handleKeys(m keysMsg) {
 	t := &a.keys
 	t.loaded, t.list, t.err, t.agent, t.agentHint = true, m.list, m.err, m.agent, m.agentHint
 	t.cursor = min(t.cursor, max(0, len(t.list)-1))
+	a.runDoctor() // keys without a passphrase
 }
 
 func (t *keysTab) current() *keys.Key {
@@ -503,6 +504,9 @@ func (a *App) isWindows(alias, override string) (windows bool, why string) {
 		if p := a.peer(h); p != nil && p.OS != "" {
 			return strings.EqualFold(p.OS, "windows"), "Tailscale"
 		}
+	}
+	if f, ok := a.facts.Get(alias); ok && f.Err == "" {
+		return f.Windows, "facts"
 	}
 	return false, "default"
 }

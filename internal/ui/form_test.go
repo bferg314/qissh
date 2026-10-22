@@ -24,7 +24,7 @@ func runCmd(a *App, cmd tea.Cmd) {
 			for _, c := range msg {
 				runCmd(a, c)
 			}
-		case savedMsg, loginMsg, trustMsg, reachMsg, tailscaleMsg:
+		case savedMsg, loginMsg, trustMsg, reachMsg, tailscaleMsg, runResultMsg, factsMsg:
 			_, next := a.Update(msg)
 			runCmd(a, next)
 		}

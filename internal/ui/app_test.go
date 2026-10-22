@@ -109,11 +109,11 @@ func (f fakeRunner) Combined(_ context.Context, name string, args ...string) ([]
 			return nil, nil
 		}
 	}
-	alias := args[len(args)-2] // ... alias "exit 0"
+	alias, command := args[len(args)-2], args[len(args)-1] // ... alias "exit 0"
 	if out, ok := f.logins[alias]; ok {
 		return []byte(out), errors.New("exit status 255")
 	}
-	return nil, nil
+	return remoteCommand(alias, command)
 }
 
 type testEnv struct {
@@ -122,6 +122,7 @@ type testEnv struct {
 	hist    *history.History
 	fake    fakeRunner
 	calls   *[]string
+	tunnels *fakeTunnels
 }
 
 func newTestApp(t *testing.T, w, h int) *testEnv {
@@ -145,14 +146,15 @@ func newTestApp(t *testing.T, w, h int) *testEnv {
 	calls := &[]string{}
 	keyDir := filepath.Join(dir, "keys")
 	agentKey := writeTestKeys(t, keyDir)
+	tunnels := &fakeTunnels{}
 	fake := fakeRunner{logins: map[string]string{}, knownHosts: filepath.ToSlash(filepath.Join(dir, "known_hosts")), calls: calls,
 		agent: "256 " + agentKey + " me@here (ED25519)\n", keyDir: keyDir}
 	a := New(Options{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml"), Runner: fake, History: hist,
-		BackupDir: filepath.Join(dir, "backups"), KeyDir: keyDir})
+		BackupDir: filepath.Join(dir, "backups"), KeyDir: keyDir, FactsPath: filepath.Join(dir, "facts.json"), StartTunnel: tunnels.start})
 	a.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	resolveSync(a)
 	a.Update(a.loadKeys()())
-	return &testEnv{a: a, sshPath: sshPath, hist: hist, fake: fake, calls: calls}
+	return &testEnv{a: a, sshPath: sshPath, hist: hist, fake: fake, calls: calls, tunnels: tunnels}
 }
 
 // resolveSync does what resolveAll does, without the event loop.
@@ -408,6 +410,16 @@ func TestEveryScreenFits(t *testing.T) {
 		"confirm":    func(a *App) { press(a, "C", "1") },
 		"pick hosts": func(a *App) { press(a, "3", "C") },
 		"settings":   func(a *App) { press(a, "4") },
+		"run":        func(a *App) { press(a, "a", "x") },
+		"run output": func(a *App) {
+			press(a, "a", "x", "uptime")
+			_, c := a.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			runCmd(a, c)
+		},
+		"doctor":     func(a *App) { press(a, "!") },
+		"tunnels":    func(a *App) { press(a, "T") },
+		"new tunnel": func(a *App) { press(a, "T", "n", "5432") },
+		"facts":      func(a *App) { _, c := a.Update(tea.KeyPressMsg{Code: 'i', Text: "i"}); runCmd(a, c); press(a, "d") },
 		"new host":   func(a *App) { press(a, "n") },
 		"edit":       func(a *App) { press(a, "e") },
 		"delete?":    func(a *App) { press(a, "e"); a.form.confirmDelete = true },

@@ -92,6 +92,8 @@ type Config struct {
 	// Hosts holds tags, notes and a web page per host, keyed by alias.
 	Hosts map[string]*HostMeta `toml:"hosts,omitempty"`
 	Tools []Tool               `toml:"tools"`
+	// Snippets are saved commands for running on hosts.
+	Snippets []Snippet `toml:"snippets,omitempty"`
 }
 
 // Path returns the location of the config file.

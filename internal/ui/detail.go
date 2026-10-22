@@ -168,6 +168,8 @@ func (a *App) renderDetail(w, h int, border bool) string {
 		if res != nil && res.Err == nil {
 			a.appendConnection(h, res, add, section)
 		}
+		a.appendTunnels(h.Alias, add, section)
+		a.appendFacts(h.Alias, add, section)
 		a.appendHistory(h, add, section)
 		a.appendSource(h.Location, h, add, section)
 	}

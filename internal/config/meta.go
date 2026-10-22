@@ -12,10 +12,37 @@ type HostMeta struct {
 	Notes string   `toml:"notes,omitempty"`
 	// Web is the host's web page, opened with w.
 	Web string `toml:"web,omitempty"`
+	// Tunnels are saved port forwards, started with T.
+	Tunnels []Tunnel `toml:"tunnels,omitempty"`
+}
+
+// Tunnel is a saved port forward: "5432", "L 8080:db:5432", "D 1080".
+type Tunnel struct {
+	Name string `toml:"name,omitempty"`
+	Spec string `toml:"spec"`
+}
+
+// Snippet is a saved command for running on hosts (x).
+type Snippet struct {
+	Name string `toml:"name,omitempty"`
+	Cmd  string `toml:"cmd"`
 }
 
 // Empty reports whether there's nothing to keep.
-func (m HostMeta) Empty() bool { return len(m.Tags) == 0 && m.Notes == "" && m.Web == "" }
+func (m HostMeta) Empty() bool {
+	return len(m.Tags) == 0 && m.Notes == "" && m.Web == "" && len(m.Tunnels) == 0
+}
+
+// AddSnippet saves cmd, unless it's saved already.
+func (c *Config) AddSnippet(cmd string) bool {
+	for _, s := range c.Snippets {
+		if s.Cmd == cmd {
+			return false
+		}
+	}
+	c.Snippets = append(c.Snippets, Snippet{Cmd: cmd})
+	return true
+}
 
 // Meta is alias's metadata. Entries match the alias ignoring case, like
 // ssh does.

@@ -140,12 +140,14 @@ func (f *hostForm) fields() sshconfig.HostFields {
 	}
 }
 
+// meta is the host's metadata with the form's changes; what the form
+// doesn't show (saved tunnels) is kept.
 func (f *hostForm) meta() config.HostMeta {
-	return config.HostMeta{
-		Tags:  config.ParseTags(f.inputs[fTags].Value()),
-		Web:   strings.TrimSpace(f.inputs[fWeb].Value()),
-		Notes: strings.TrimSpace(f.inputs[fNotes].Value()),
-	}
+	m := f.origMeta
+	m.Tags = config.ParseTags(f.inputs[fTags].Value())
+	m.Web = strings.TrimSpace(f.inputs[fWeb].Value())
+	m.Notes = strings.TrimSpace(f.inputs[fNotes].Value())
+	return m
 }
 
 func sameMeta(a, b config.HostMeta) bool {
@@ -349,6 +351,7 @@ func (a *App) handleSaved(msg savedMsg) tea.Cmd {
 			a.cfg.SetHidden(msg.alias, true)
 		}
 		_ = a.hist.Rename(msg.oldAlias, msg.alias)
+		_ = a.facts.Rename(msg.oldAlias, msg.alias)
 		cmds = append(cmds, a.saveConfig())
 	}
 	switch {

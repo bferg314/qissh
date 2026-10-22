@@ -15,11 +15,14 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bferg314/quick-ssh/internal/config"
+	"github.com/bferg314/quick-ssh/internal/doctor"
 	"github.com/bferg314/quick-ssh/internal/history"
 	"github.com/bferg314/quick-ssh/internal/keys"
+	"github.com/bferg314/quick-ssh/internal/remote"
 	"github.com/bferg314/quick-ssh/internal/resolve"
 	"github.com/bferg314/quick-ssh/internal/run"
 	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/quick-ssh/internal/tunnel"
 )
 
 const (
@@ -48,7 +51,7 @@ var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "s": true, "m": true, "d": true, "y": true,
 	"j": true, "k": true, "J": true, "K": true, "1": true, "2": true, "3": true, "4": true,
 	"*": true, "h": true, "H": true, "E": true, "e": true, "n": true, "t": true, "a": true, "space": true, "enter": true,
-	"C": true, "w": true,
+	"C": true, "w": true, "x": true, "i": true, "T": true, "!": true,
 }
 
 // Options are what main hands the app.
@@ -66,6 +69,11 @@ type Options struct {
 	BackupDir string
 	// KeyDir is where key pairs are looked for; "" is ~/.ssh.
 	KeyDir string
+	// FactsPath is where host facts are cached; "" uses the OS cache
+	// folder.
+	FactsPath string
+	// StartTunnel runs tunnels' ssh; nil starts real processes.
+	StartTunnel tunnel.Starter
 }
 
 // Outcome is what to do once the TUI has exited.
@@ -108,7 +116,20 @@ type App struct {
 	keyForm  *keyForm
 	// copyKey is a key chosen on the Keys tab, waiting for hosts to be
 	// picked on the Hosts tab.
-	copyKey    *keys.Key
+	copyKey *keys.Key
+	// runv is the run-on-many prompt and its results (x).
+	runv  *runView
+	runID int
+	// Tunnels (T), and the channel their ends arrive on.
+	tunnels     *tunnel.Manager
+	tunnelEnded chan tunnelEndMsg
+	tunnelForm  *tunnelForm
+	// Facts (i): the cache, and the hosts being asked.
+	facts    *remote.Cache
+	fetching map[string]bool
+	// The config doctor's findings, and its view (!).
+	findings   []doctor.Finding
+	doctor     *doctorView
 	keyDir     string
 	backupDir  string
 	help       bool
@@ -164,7 +185,16 @@ func New(o Options) *App {
 		backupDir: o.BackupDir,
 		checks:    newChecks(),
 		sem:       make(chan struct{}, resolveWorkers),
+		tunnels:   tunnel.NewManager(o.StartTunnel),
+		fetching:  map[string]bool{},
+		// Buffered so a tunnel ending while quick-ssh is busy doesn't block.
+		tunnelEnded: make(chan tunnelEndMsg, 64),
 	}
+	factsPath := o.FactsPath
+	if factsPath == "" {
+		factsPath = remote.DefaultCachePath()
+	}
+	a.facts = remote.LoadCache(factsPath)
 	if a.backupDir == "" {
 		a.backupDir = backupDir()
 	}
@@ -186,7 +216,7 @@ func New(o Options) *App {
 func (a *App) Outcome() Outcome { return a.outcome }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch(), a.loadTailscale(), a.checkTick(), a.loadKeys(), a.loadKnownHosts())
+	return tea.Batch(tea.RequestBackgroundColor, a.resolveAll(), a.watch(), a.loadTailscale(), a.checkTick(), a.loadKeys(), a.loadKnownHosts(), a.waitTunnel())
 }
 
 // loadSSH (re)reads the ssh config and rebuilds the host list. Resolved
@@ -201,6 +231,7 @@ func (a *App) loadSSH() {
 	a.mtimes = a.fileTimes()
 	a.hosts.rebuild(c)
 	a.refresh()
+	a.runDoctor()
 }
 
 // fileTimes records the modification time of the main config and every
@@ -275,7 +306,8 @@ func (a *App) resolving() bool {
 }
 
 func (a *App) busy() bool {
-	return a.resolving() || a.form != nil && a.form.saving || len(a.checks.probing) > 0
+	return a.resolving() || a.form != nil && a.form.saving || len(a.checks.probing) > 0 ||
+		len(a.fetching) > 0 || a.runv != nil && a.runv.running()
 }
 
 func (a *App) startSpinner() tea.Cmd {
@@ -378,6 +410,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case copyDoneMsg:
 		return a, a.handleCopyDone(msg)
 
+	case runResultMsg:
+		return a, a.handleRunResult(msg)
+
+	case tunnelEndMsg:
+		return a, a.handleTunnelEnd(msg)
+
+	case factsMsg:
+		return a, a.handleFacts(msg)
+
 	case watchMsg:
 		if a.changedOnDisk() {
 			a.loadSSH()
@@ -429,6 +470,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.keyForm != nil {
 		return a, a.updateKeyForm(msg)
 	}
+	if f := a.tunnelForm; f != nil {
+		var cmd tea.Cmd
+		f.inputs[f.focus], cmd = f.inputs[f.focus].Update(msg)
+		return a, cmd
+	}
+	if v := a.runv; v != nil && v.command == "" {
+		var cmd tea.Cmd
+		v.input, cmd = v.input.Update(msg)
+		return a, cmd
+	}
 	return a, a.updateFilter(msg)
 }
 
@@ -447,8 +498,17 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if a.keyForm != nil {
 		return a.keyFormKey(msg)
 	}
+	if a.tunnelForm != nil {
+		return a.tunnelFormKey(msg)
+	}
 	if a.popup != nil {
 		return a.popupKey(key)
+	}
+	if a.runv != nil {
+		return a.runKey(msg)
+	}
+	if a.doctor != nil {
+		return a.doctorKey(key)
 	}
 	if f := a.activeFilter(); f != nil && f.Focused() {
 		switch key {
@@ -479,6 +539,10 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Quit
 	case "?":
 		a.help, a.helpScroll = true, 0
+		return nil
+	case "!":
+		a.runDoctor()
+		a.doctor = &doctorView{}
 		return nil
 	case "tab", "right":
 		return a.setTab((a.tab + 1) % len(tabNames))
@@ -625,8 +689,14 @@ func (a *App) render() string {
 		overlay = a.renderForm()
 	case a.keyForm != nil:
 		overlay = a.renderKeyForm()
+	case a.tunnelForm != nil:
+		overlay = a.renderTunnelForm()
 	case a.popup != nil:
 		overlay = a.renderPopup()
+	case a.runv != nil:
+		overlay = a.renderRun()
+	case a.doctor != nil:
+		overlay = a.renderDoctor()
 	}
 	if overlay == "" {
 		return base

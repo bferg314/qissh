@@ -328,6 +328,12 @@ func (a *App) hostsKey(key string) tea.Cmd {
 		return a.copyKeyToHosts()
 	case "w":
 		return a.openWeb()
+	case "x":
+		return a.openRun()
+	case "i":
+		return a.fetchFacts()
+	case "T":
+		return a.tunnelMenu()
 	default:
 		if h := t.currentHost(); h != nil && !reservedKeys[key] {
 			for _, tool := range a.enabledTools() {

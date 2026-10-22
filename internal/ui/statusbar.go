@@ -214,8 +214,14 @@ func (a *App) barMode() (string, color.Color) {
 		return "NEW KEY", st.green
 	case a.copyKey != nil && a.tab == tabHosts:
 		return "PICK HOSTS", st.yellow
+	case a.tunnelForm != nil:
+		return "TUNNEL", st.green
 	case a.popup != nil:
 		return "ACTIONS", st.green
+	case a.runv != nil:
+		return "RUN", st.yellow
+	case a.doctor != nil:
+		return "DOCTOR", st.magenta
 	}
 	if f := a.activeFilter(); f != nil && f.Focused() {
 		return "FILTER", st.yellow
@@ -310,11 +316,17 @@ func (a *App) barSummary() segment {
 		}
 		parts = append(parts, part{text: fmt.Sprintf("✓%d selected", n), fg: st.green})
 	}
-	if n := len(a.ssh.Warnings); n > 0 {
+	more := func(text string, fg color.Color) {
 		if len(parts) > 0 {
 			parts = append(parts, part{text: " ", fg: st.text})
 		}
-		parts = append(parts, part{text: fmt.Sprintf("!%d unreadable %s", n, plural(n, "include", "includes")), fg: st.yellow})
+		parts = append(parts, part{text: text, fg: fg})
+	}
+	if s := a.tunnelSummary(); s != "" {
+		more(s, st.blue)
+	}
+	if n := a.toFix(); n > 0 && a.tab == tabHosts {
+		more(fmt.Sprintf("!%d to fix", n), st.yellow) // the doctor (!) lists them
 	}
 	if len(parts) == 0 {
 		return segment{}

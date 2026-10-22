@@ -60,6 +60,9 @@ func (a *App) openActions() tea.Cmd {
 	}
 	add("t", "Check login", "key auth only, never prompts; fixes host keys", a.checkLogins)
 	add("C", "Copy a key here…", "adds your public key to its authorized_keys", a.copyKeyToHosts)
+	add("x", "Run a command…", "on this host, or every selected one", a.openRun)
+	add("i", "Fetch facts", "OS, uptime, load, memory, disk, updates", a.fetchFacts)
+	add("T", "Tunnels…", "start and stop port forwards", a.tunnelMenu)
 	if web := a.cfg.Meta(h.Alias).Web; web != "" {
 		add("w", "Open web page", web, a.openWeb)
 	}

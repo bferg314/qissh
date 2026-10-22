@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -20,7 +21,9 @@ import (
 	"github.com/sahilm/fuzzy"
 
 	"github.com/bferg314/quick-ssh/internal/config"
+	"github.com/bferg314/quick-ssh/internal/doctor"
 	"github.com/bferg314/quick-ssh/internal/history"
+	"github.com/bferg314/quick-ssh/internal/keys"
 	"github.com/bferg314/quick-ssh/internal/resolve"
 	"github.com/bferg314/quick-ssh/internal/run"
 	"github.com/bferg314/quick-ssh/internal/shell"
@@ -47,6 +50,7 @@ func main() {
                               list hosts
   quick-ssh check [--login] [host...]
                               which hosts are up (exit status 1 if any are down)
+  quick-ssh doctor            mistakes in your ssh config (exit status 1 if any need fixing)
   quick-ssh init <shell>      print shell integration (%s), which defines qs
 
 Flags:
@@ -63,6 +67,8 @@ Flags:
 		err = runInit(flag.Arg(1))
 	case flag.Arg(0) == "ls":
 		err = runLs(flag.Args()[1:])
+	case flag.Arg(0) == "doctor":
+		err = runDoctor()
 	case flag.Arg(0) == "check":
 		err = runCheck(flag.Args()[1:])
 	case flag.NArg() > 1:
@@ -158,10 +164,41 @@ func runMain(query, cmdFile string) error {
 		Filter:     query,
 		CmdFile:    cmdFile,
 	})
-	if _, err := tea.NewProgram(app).Run(); err != nil {
+	_, err = tea.NewProgram(app).Run()
+	app.StopTunnels() // they're ssh processes quick-ssh started
+	if err != nil {
 		return err
 	}
 	return finish(app.Outcome(), cmdFile)
+}
+
+// runDoctor prints the config doctor's findings and fails when there's
+// a warning or a problem.
+func runDoctor() error {
+	s, err := load()
+	if err != nil {
+		return err
+	}
+	list, _ := keys.Scan(keys.Dir())
+	findings := doctor.Check(doctor.Input{Config: s.ssh, Keys: list, Stat: os.Stat, Expand: config.ExpandPath,
+		Permissions: runtime.GOOS != "windows"})
+	if len(findings) == 0 {
+		fmt.Println("✓ nothing to fix in " + config.TildePath(s.ssh.Path))
+		return nil
+	}
+	bad := false
+	for _, f := range findings {
+		icon := map[doctor.Level]string{doctor.Info: "·", doctor.Warning: "!", doctor.Problem: "✗"}[f.Level]
+		fmt.Printf("%s %s\n    %s\n    fix: %s\n", icon, f.Title, f.Detail, f.Fix)
+		if f.Line > 0 {
+			fmt.Printf("    at %s:%d\n", config.TildePath(f.File), f.Line)
+		}
+		bad = bad || f.Level >= doctor.Warning
+	}
+	if bad {
+		return exitError(1)
+	}
+	return nil
 }
 
 // pick turns a query into the alias to connect to: "-" is the last host,

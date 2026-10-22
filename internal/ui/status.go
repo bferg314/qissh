@@ -184,14 +184,17 @@ func (a *App) counts() (up, down int) {
 // checkLogins tries key authentication on the selected hosts, or the one
 // under the cursor (t). A single check that finds a host key problem
 // goes on to show the key, ready to trust.
-func (a *App) checkLogins() tea.Cmd {
+func (a *App) checkLogins() tea.Cmd { return a.checkLoginsFor(a.targets()) }
+
+// targets are the selected hosts, or the one under the cursor.
+func (a *App) targets() []string {
 	aliases := a.hosts.selectedAliases()
 	if len(aliases) == 0 {
 		if h := a.hosts.currentHost(); h != nil {
 			aliases = []string{h.Alias}
 		}
 	}
-	return a.checkLoginsFor(aliases)
+	return aliases
 }
 
 // checkLoginsFor tries logging in to each alias. A single host's result
