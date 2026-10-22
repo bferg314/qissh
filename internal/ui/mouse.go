@@ -4,6 +4,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // Mouse support. While render draws the screen, each part records the
@@ -133,6 +134,46 @@ func (a *App) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// listRow makes a list row drawn at line y clickable: a click moves the
+// cursor there (pick), and a double click and a right click are enter and
+// m on the list's key handler. mark, when set, is what a click in the
+// mark column does.
+func (a *App) listRow(y, w int, pick func(), key func(string) tea.Cmd, mark func()) {
+	a.addZone(zone{x: 0, y: y, w: w, h: 1,
+		click: func() tea.Cmd { pick(); return nil },
+		dbl:   func() tea.Cmd { pick(); return key("enter") },
+		right: func() tea.Cmd { pick(); return key("m") },
+	})
+	if mark != nil {
+		a.addZone(zone{x: 0, y: y, w: markW, h: 1, click: func() tea.Cmd { pick(); mark(); return nil }})
+	}
+}
+
+// wheelKeys turns the wheel into up and down on a key handler.
+func wheelKeys(key func(string) tea.Cmd) func(int) tea.Cmd {
+	return func(d int) tea.Cmd {
+		if d < 0 {
+			return key("up")
+		}
+		return key("down")
+	}
+}
+
+// Content in a boxed overlay starts inside its border and padding.
+const boxLeft, boxTop = 3, 2
+
+// boxZone records z on line of a boxed overlay's content, x cells in.
+func (a *App) boxZone(line, x int, z zone) {
+	z.x, z.y, z.h = boxLeft+x, boxTop+line, 1
+	a.addZone(z)
+}
+
+// wheelOver lets the wheel anywhere on a rendered overlay run wheel.
+func (a *App) wheelOver(s string, wheel func(int) tea.Cmd) string {
+	a.addZone(zone{w: lipgloss.Width(s), h: lipgloss.Height(s), wheel: wheel})
+	return s
 }
 
 // overlayZones are the zones behind an open overlay at (x, y), w×h: it's

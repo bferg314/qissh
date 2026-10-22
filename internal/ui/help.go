@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/qissh/internal/config"
@@ -45,9 +46,9 @@ func (a *App) renderHelp() string {
 		row("!", "config doctor: what to fix"),
 		row("?", "this help"),
 		row("q", "quit"),
-		row("click", "go there; tab names switch tabs"),
+		row("click", "go there · press buttons, headings"),
 		row("dbl-click", "enter · right-click: m"),
-		row("wheel", "move, or scroll the detail pane"),
+		row("wheel", "move, or scroll what's under it"),
 		"",
 		title("Hosts"),
 		row("enter", "connect (selected hosts: one tab each)"),
@@ -136,5 +137,6 @@ func (a *App) renderHelp() string {
 	} else {
 		a.helpScroll = 0
 	}
-	return a.boxed(st.box.Padding(0, 2), lines)
+	scroll := func(key string) tea.Cmd { a.helpKey(key); return nil }
+	return a.wheelOver(a.boxed(st.box.Padding(0, 2), lines), wheelKeys(scroll))
 }

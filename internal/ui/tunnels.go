@@ -188,6 +188,11 @@ func (a *App) renderTunnelForm() string {
 		if i == f.focus {
 			marker, lab = st.marker.Render("▌ "), st.selName.Render(label)
 		}
+		a.boxZone(len(lines), 0, zone{w: 11 + w, click: func() tea.Cmd {
+			f.inputs[f.focus].Blur()
+			f.focus = i
+			return f.inputs[i].Focus()
+		}})
 		lines = append(lines, marker+fit(lab, 9)+in.View())
 	}
 	lines = append(lines, "")

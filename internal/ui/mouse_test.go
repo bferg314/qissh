@@ -33,7 +33,9 @@ func wheel(a *App, x, y int, down bool) tea.Cmd {
 	return mouseAt(a, func(m tea.Mouse) tea.Msg { return tea.MouseWheelMsg(m) }, x, y, b)
 }
 
-// find is where text first appears on the screen.
+// find is where text first appears on the screen. The header shows the
+// temp folder's path, which holds the test's name, so a test's name
+// mustn't contain the text it looks for.
 func find(t *testing.T, a *App, text string) (x, y int) {
 	t.Helper()
 	for y, l := range strings.Split(screen(a), "\n") {
@@ -178,5 +180,141 @@ func TestMouseOff(t *testing.T) {
 	clickText(t, a, "Keys")
 	if a.tab != tabHosts {
 		t.Fatal("clicks are ignored when it's off")
+	}
+}
+
+func TestMouseDiscoverRows(t *testing.T) {
+	a := newTestApp(t, 130, 30).a
+	withDevices(t, a)
+	press(a, "2")
+	clickText(t, a, "zebra")
+	if d := a.disc.current(); d == nil || d.Name != "zebra" {
+		t.Fatalf("cursor: %+v", d)
+	}
+	_, y := find(t, a, "box.lan")
+	click(a, 1, y)
+	a.mouse.lastAt = time.Time{}
+	if len(a.selectedDevices()) != 1 || a.disc.current().Name != "box.lan" {
+		t.Fatalf("the mark column selects: %v", a.selectedDevices())
+	}
+	press(a, "space") // unselect, so a double click adds just one
+	x, y := find(t, a, "nas")
+	click(a, x, y)
+	click(a, x, y)
+	if a.form == nil || a.form.inputs[fAlias].Value() != "nas" {
+		t.Fatalf("a double click opens the add form: %+v", a.form)
+	}
+}
+
+func TestMouseKeysRows(t *testing.T) {
+	a := newTestApp(t, 120, 30).a
+	press(a, "3")
+	x, y := find(t, a, "work")
+	click(a, x, y)
+	if k := a.keys.current(); k == nil || k.Name != "work" {
+		t.Fatalf("cursor: %+v", k)
+	}
+	click(a, x, y)
+	if a.popup == nil || a.popup.title != "work" {
+		t.Fatalf("a double click opens the key's menu: %+v", a.popup)
+	}
+}
+
+func TestClickSettings(t *testing.T) {
+	a := newTestApp(t, 120, 40).a
+	press(a, "4")
+	clickText(t, a, "Mouse")
+	if it := a.settingItems()[a.settings.cursor]; it.label != "Mouse" || !a.cfg.Mouse {
+		t.Fatalf("a click on the label only moves there: %q, mouse %v", it.label, a.cfg.Mouse)
+	}
+	_, y := find(t, a, "Mouse")
+	click(a, 5, y) // the checkbox
+	if a.cfg.Mouse {
+		t.Fatal("a click on the checkbox ticks it")
+	}
+}
+
+func TestMouseSortByColumn(t *testing.T) {
+	a := newTestApp(t, 90, 30).a
+	for _, c := range []struct {
+		head string
+		want sortMode
+	}{{"HOST", sortName}, {"STATUS", sortStatus}, {"CONNECTED", sortFrecency}} {
+		clickText(t, a, c.head)
+		if a.hosts.sort != c.want {
+			t.Fatalf("%s: sort %s", c.head, a.hosts.sort)
+		}
+	}
+	if cursorAlias(a) == "" || a.hosts.view[0].host.Alias != "devbox1" {
+		t.Fatal("the list is still there")
+	}
+}
+
+func TestMousePopupAndForm(t *testing.T) {
+	a := newTestApp(t, 120, 40).a
+	press(a, "m")
+	clickText(t, a, "Edit…")
+	if a.popup != nil || a.form == nil || a.form.host == nil {
+		t.Fatalf("clicking an action runs it: popup %v form %+v", a.popup != nil, a.form)
+	}
+	clickText(t, a, "ProxyJump")
+	if a.form.focus != fJump {
+		t.Fatalf("clicking a field focuses it: %d", a.form.focus)
+	}
+	clickText(t, a, "Delete host")
+	if !a.form.confirmDelete {
+		t.Fatal("Delete host asks first")
+	}
+	press(a, "n", "esc", "esc")
+
+	press(a, "n")
+	clickText(t, a, "Save")
+	if a.form == nil || !strings.Contains(a.form.err, "alias") {
+		t.Fatalf("Save checks the fields: %+v", a.form)
+	}
+}
+
+func TestMouseKeyAndTunnelForms(t *testing.T) {
+	a := newTestApp(t, 120, 40).a
+	press(a, "3", "n")
+	clickText(t, a, "rsa")
+	if keyTypes[a.keyForm.typ] != "rsa" || !strings.Contains(a.keyForm.name.Value(), "rsa") {
+		t.Fatalf("clicking a type picks it: %s %q", keyTypes[a.keyForm.typ], a.keyForm.name.Value())
+	}
+	clickText(t, a, "Comment")
+	if a.keyForm.focus != 2 {
+		t.Fatalf("focus %d", a.keyForm.focus)
+	}
+	press(a, "esc", "1")
+
+	a.hosts.focus("elm")
+	press(a, "T", "n")
+	clickText(t, a, "Name")
+	if a.tunnelForm == nil || a.tunnelForm.focus != 1 {
+		t.Fatalf("tunnel form: %+v", a.tunnelForm)
+	}
+}
+
+func TestMouseBarHelpAndDoctor(t *testing.T) {
+	a := newTestApp(t, 120, 20).a
+	clickText(t, a, "to fix")
+	if a.doctor == nil {
+		t.Fatalf("!N to fix opens the doctor:\n%s", screen(a))
+	}
+	x, y := find(t, a, a.findings[1].Title)
+	click(a, x, y)
+	if a.doctor.cursor != 1 {
+		t.Fatalf("clicking a finding moves to it: %d", a.doctor.cursor)
+	}
+	press(a, "esc")
+
+	clickText(t, a, "? help")
+	if !a.help {
+		t.Fatal("? help opens help")
+	}
+	_, y = find(t, a, "Everywhere")
+	wheel(a, a.w/2, y, true)
+	if a.helpScroll != 1 || !a.help {
+		t.Fatalf("the wheel scrolls help: %d", a.helpScroll)
 	}
 }

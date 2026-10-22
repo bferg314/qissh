@@ -141,16 +141,18 @@ func (a *App) renderSettings(h int) string {
 	st := a.st
 	items := a.settingItems()
 	var lines []string
+	var itemOf []int // the item on each line; -1 for the rest
 	cursorLine := 0
 	section := ""
 	for i, it := range items {
 		if it.section != section {
 			section = it.section
 			if len(lines) > 0 {
-				lines = append(lines, "")
+				lines, itemOf = append(lines, ""), append(itemOf, -1)
 			}
-			lines = append(lines, "  "+st.boxTitle.Render(section))
+			lines, itemOf = append(lines, "  "+st.boxTitle.Render(section)), append(itemOf, -1)
 		}
+		itemOf = append(itemOf, i)
 		marker := "  "
 		label := st.textS.Render(it.label)
 		if i == a.settings.cursor {
@@ -179,9 +181,23 @@ func (a *App) renderSettings(h int) string {
 		"    "+st.dim.Render("Add tools, change keys and the ssh config path in the config file below."))
 
 	// Scroll so the cursor (and its section heading) stay visible.
+	start := 0
 	if len(lines) > h {
-		start := max(0, min(cursorLine-h/2, len(lines)-h))
+		start = max(0, min(cursorLine-h/2, len(lines)-h))
 		lines = lines[start : start+h]
+	}
+
+	// A click picks a row; on its checkbox, or a double click, it's enter.
+	a.addZone(zone{w: a.w, h: h, wheel: wheelKeys(a.settingsKey)})
+	for y := range lines {
+		if y+start >= len(itemOf) || itemOf[y+start] < 0 {
+			continue
+		}
+		i := itemOf[y+start]
+		pick := func() { a.settings.cursor = i }
+		enter := func() tea.Cmd { pick(); return a.settingsKey("enter") }
+		a.addZone(zone{y: y, w: a.w, h: 1, click: func() tea.Cmd { pick(); return nil }, dbl: enter})
+		a.addZone(zone{x: 4, y: y, w: 3, h: 1, click: enter}) // after the marker: [✓] or ▸
 	}
 	return strings.Join(lines, "\n")
 }

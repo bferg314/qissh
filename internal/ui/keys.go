@@ -12,6 +12,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bferg314/qissh/internal/config"
 	"github.com/bferg314/qissh/internal/keys"
@@ -353,6 +354,7 @@ func (a *App) renderKeyForm() string {
 		if f.focus == i {
 			l, marker = st.selName.Render(label), st.marker.Render("▌ ")
 		}
+		a.boxZone(len(lines), 0, zone{w: 14 + inputW, click: func() tea.Cmd { return f.setFocus(i) }})
 		lines = append(lines, marker+fit(l, 12)+value)
 	}
 	f.name.SetWidth(inputW)
@@ -371,12 +373,28 @@ func (a *App) renderKeyForm() string {
 		typeHint = st.dim.Render("  ←/→")
 	}
 	row(1, "Type", strings.Join(types, " · ")+typeHint)
+	x := 14
+	for i, t := range keyTypes {
+		// Picked as →, so the file name follows the type.
+		a.boxZone(len(lines)-1, x, zone{w: len(t), click: func() tea.Cmd {
+			f.setFocus(1)
+			for f.typ != i {
+				a.keyFormKey(tea.KeyPressMsg{Code: tea.KeyRight})
+			}
+			return nil
+		}})
+		x += ansi.StringWidth(t + " · ")
+	}
 	row(2, "Comment", f.comment.View())
 	lines = append(lines, "")
 	button := st.ok.Render("[Generate]")
 	if f.focus == 3 {
 		button = st.ok.Reverse(true).Render(" Generate ")
 	}
+	a.boxZone(len(lines), 2, zone{w: len("[Generate]"), click: func() tea.Cmd {
+		f.setFocus(3)
+		return a.generateKey()
+	}})
 	lines = append(lines, "  "+button, "")
 	if f.err != "" {
 		lines = append(lines, st.bad.Render(f.err))
@@ -611,6 +629,10 @@ func (a *App) renderKeys(h int) string {
 	case len(t.list) == 0:
 		lines = append(lines, "", "  "+st.dim.Render("No keys in "+config.TildePath(a.keyDir)+" yet. ")+st.key.Render("n")+st.dim.Render(" makes one."))
 	default:
+		a.addZone(zone{w: w, h: h, wheel: wheelKeys(a.keysKey)})
+		for i := range t.list {
+			a.listRow(1+i, w, func() { t.cursor = i }, a.keysKey, nil)
+		}
 		lines = append(lines, a.keyTable(w)...)
 		if k := t.current(); k != nil {
 			lines = append(lines, "")

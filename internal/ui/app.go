@@ -693,7 +693,7 @@ func (a *App) render() string {
 		}
 		return ""
 	})
-	a.addZones(bodyZones, 0, 2) // below the header and its rule
+	a.addZones(clipZones(bodyZones, a.w, bodyH), 0, 2) // below the header and its rule
 	body = padLines(body, bodyH, a.w)
 
 	base := strings.Join([]string{header, rule, body, a.renderStatusBar()}, "\n")
@@ -732,7 +732,7 @@ func (a *App) render() string {
 	ow, oh := lipgloss.Width(overlay), lipgloss.Height(overlay)
 	ox, oy := max(0, (a.w-ow)/2), max(0, (a.h-oh)/2)
 	zones = a.overlayZones(ox, oy, ow, oh)
-	a.addZones(overlayZones, ox, oy)
+	a.addZones(clipZones(overlayZones, ow, oh), ox, oy)
 	return lipgloss.NewCompositor(
 		lipgloss.NewLayer(base),
 		lipgloss.NewLayer(overlay).X(ox).Y(oy).Z(1),

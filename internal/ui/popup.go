@@ -137,6 +137,10 @@ func (a *App) renderPopup() string {
 		if act.note != "" {
 			line += "  " + st.dim.Render(act.note)
 		}
+		a.boxZone(len(lines), 0, zone{w: lipgloss.Width(line), click: func() tea.Cmd {
+			a.popup = nil
+			return act.run()
+		}})
 		lines = append(lines, line)
 	}
 	lines = append(lines, "", st.dim.Render("enter or a key runs it · esc closes"))

@@ -281,7 +281,7 @@ func (a *App) renderRun() string {
 	for i, l := range lines {
 		lines[i] = fit(l, w)
 	}
-	return a.boxed(st.box, lines)
+	return a.wheelOver(a.boxed(st.box, lines), wheelKeys(a.runResultsKey))
 }
 
 func (a *App) renderRunPrompt() string {

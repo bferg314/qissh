@@ -421,6 +421,26 @@ func (a *App) renderDiscover(h int) string {
 		rows = max(1, h-len(top)-1)
 	}
 	table := a.deviceTable(w, rows)
+	a.addZone(zone{w: w, h: h, wheel: wheelKeys(a.discoverKey)})
+	for i := t.offset; i < min(len(t.view), t.offset+rows); i++ {
+		pick := func() {
+			if t.filter.Focused() {
+				t.filter.Blur()
+				a.refreshDiscover()
+			}
+			t.cursor = min(i, len(t.view)-1)
+		}
+		mark := func() {
+			if d := t.current(); d != nil {
+				if t.selected[d.Key()] {
+					delete(t.selected, d.Key())
+				} else {
+					t.selected[d.Key()] = true
+				}
+			}
+		}
+		a.listRow(len(top)+1+i-t.offset, w, pick, a.discoverKey, mark)
+	}
 	lines := append(top, table...)
 	lines = append(lines, detail...)
 	lines = append(lines, footer...)

@@ -518,6 +518,7 @@ func (a *App) renderHosts(w, h int) string {
 	if c.last > 0 {
 		head += "  " + fit(st.colHead.Render("CONNECTED"), c.last)
 	}
+	a.sortZones(len(lines), c)
 	lines = append(lines, head)
 	h--
 
@@ -559,9 +560,9 @@ func (a *App) renderHosts(w, h int) string {
 	return strings.Join(lines, "\n")
 }
 
-// hostRowZones makes row i of the view, drawn at line y, clickable: a
-// click puts the cursor on it, a double click is enter, a right click is
-// m, and a click on the mark column selects it as space does.
+// hostRowZones makes row i of the view, drawn at line y, clickable; a
+// click on a host's mark column selects it as space does, without moving
+// down.
 func (a *App) hostRowZones(i, y, w int) {
 	t := &a.hosts
 	pick := func() {
@@ -573,17 +574,35 @@ func (a *App) hostRowZones(i, y, w int) {
 			t.cursor = i
 		}
 	}
-	a.addZone(zone{x: 0, y: y, w: w, h: 1,
-		click: func() tea.Cmd { pick(); return nil },
-		dbl:   func() tea.Cmd { pick(); return a.hostsKey("enter") },
-		right: func() tea.Cmd { pick(); return a.openActions() },
-	})
+	var mark func()
 	if r := t.view[i]; r.host != nil {
-		a.addZone(zone{x: 0, y: y, w: markW, h: 1, click: func() tea.Cmd {
-			pick()
-			t.toggle(r)
-			return nil
-		}})
+		mark = func() { t.toggle(r) }
+	}
+	a.listRow(y, w, pick, a.hostsKey, mark)
+}
+
+// sortZones make the column headings at line y sort the list by them.
+func (a *App) sortZones(y int, c cols) {
+	t := &a.hosts
+	by := func(s sortMode) func() tea.Cmd {
+		return func() tea.Cmd {
+			t.sort = s
+			a.refresh()
+			return a.notify(0, "Sorted by %s", s)
+		}
+	}
+	x := markW
+	a.addZone(zone{x: x, y: y, w: c.alias, h: 1, click: by(sortName)})
+	x += c.alias + 2
+	a.addZone(zone{x: x, y: y, w: c.status, h: 1, click: by(sortStatus)})
+	x += c.status + 2
+	for _, w := range []int{c.target, c.tags} {
+		if w > 0 {
+			x += w + 2
+		}
+	}
+	if c.last > 0 {
+		a.addZone(zone{x: x, y: y, w: c.last, h: 1, click: by(sortFrecency)})
 	}
 }
 

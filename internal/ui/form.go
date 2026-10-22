@@ -401,9 +401,21 @@ func (a *App) renderForm() string {
 			label = st.selName.Render(fieldLabels[i])
 			marker = st.marker.Render("▌ ")
 		}
+		a.boxZone(len(lines), 0, zone{w: 16 + inputW, click: func() tea.Cmd { return f.setFocus(i) }})
 		lines = append(lines, marker+fit(label, 14)+in.View())
 	}
 	lines = append(lines, "")
+	a.boxZone(len(lines), 2, zone{w: len("[Save]"), click: func() tea.Cmd {
+		f.setFocus(focusSave)
+		return a.saveForm()
+	}})
+	if f.host != nil {
+		a.boxZone(len(lines), 2+len("[Save]")+3, zone{w: len("[Delete host]"), click: func() tea.Cmd {
+			f.setFocus(focusDelete)
+			f.confirmDelete = true
+			return nil
+		}})
+	}
 
 	button := func(text string, focused bool, style lipgloss.Style) string {
 		if focused {

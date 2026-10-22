@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -118,7 +119,49 @@ func (a *App) renderStatusBar() string {
 		path = ""
 	}
 	left = append(left, seg(st.barLow, part{text: path, fg: st.text}))
-	return a.joinBar(left, right())
+	r := right()
+	summaryAt := -1 // summary's index in r: before the position, if shown, and help
+	if !summary.empty() {
+		summaryAt = len(r) - 2
+		if !position.empty() {
+			summaryAt--
+		}
+	}
+	a.barZones(r, summaryAt)
+	return a.joinBar(left, r)
+}
+
+// barZones make "? help" (always the last segment) and the doctor's
+// "!N to fix" in the summary clickable. The right-hand segments end at
+// the screen's edge, each after a one-cell separator.
+func (a *App) barZones(right []segment, summaryAt int) {
+	y := a.h - 1
+	x := a.w
+	for i := len(right) - 1; i >= 0; i-- {
+		s := right[i]
+		x -= s.width()
+		switch i {
+		case len(right) - 1:
+			a.addZone(zone{x: x, y: y, w: s.width(), h: 1, click: func() tea.Cmd {
+				a.help, a.helpScroll = true, 0
+				return nil
+			}})
+		case summaryAt:
+			px := x + 1 // the segment's padding
+			for _, p := range s.parts {
+				w := ansi.StringWidth(p.text)
+				if strings.HasSuffix(p.text, "to fix") {
+					a.addZone(zone{x: px, y: y, w: w, h: 1, click: func() tea.Cmd {
+						a.runDoctor()
+						a.doctor = &doctorView{}
+						return nil
+					}})
+				}
+				px += w
+			}
+		}
+		x-- // the separator
+	}
 }
 
 // shorten trims n cells off the end of the segment's text (last part

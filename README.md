@@ -61,7 +61,9 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 
 ### Mouse
 
-Click a tab to switch to it and a host to move to it. Double-click connects, as `enter` does, and right-click opens the action menu (`m`). Clicking the space left of a host selects it, like `space`. The wheel moves through the list, or scrolls the detail pane when the pointer is over it. While a menu, help or the doctor is open, a click outside it closes it; a click outside a form does nothing, so what you typed isn't lost.
+Click a tab to switch to it and a row to move to it, on every tab. Double-click is `enter` (connect, add a discovered machine, open a key's menu) and right-click is `m`. Clicking the space left of a host or machine selects it, like `space`. The HOST, STATUS and CONNECTED headings sort by name, status and most used. The wheel moves through lists and scrolls the detail pane, help, the doctor and command output under the pointer.
+
+In Settings, a click moves to a setting and a click on its checkbox (or `▸`) changes it. In menus a click runs the action, in forms it moves to the field or presses the button, and in the doctor it picks a finding (double-click opens its line). `? help` and `!N to fix` in the status bar open help and the doctor. While a menu, help or the doctor is open, a click outside it closes it; a click outside a form does nothing, so what you typed isn't lost.
 
 While QiSSH has the mouse, your terminal's own text selection needs Shift held (Option in macOS Terminal and iTerm2). To turn the mouse off, untick **Mouse** in Settings or set `mouse = false`.
 

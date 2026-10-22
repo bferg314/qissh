@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sort"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -87,6 +88,7 @@ func (a *App) renderDoctor() string {
 		return st.dim.Render("·")
 	}
 	var body []string
+	var starts []int // the body line each finding starts on
 	cursorLine := 0
 	for i, f := range a.findings {
 		marker, title := "  ", st.textS.Render(f.Title)
@@ -94,6 +96,7 @@ func (a *App) renderDoctor() string {
 			marker, title = st.marker.Render("▌ "), st.selName.Render(f.Title)
 			cursorLine = len(body)
 		}
+		starts = append(starts, len(body))
 		body = append(body, marker+icon(f.Level)+" "+title)
 		if i != d.cursor {
 			continue
@@ -120,6 +123,13 @@ func (a *App) renderDoctor() string {
 		d.offset = min(cursorLine, cursorLine+5-room)
 	}
 	d.offset = max(0, min(d.offset, len(body)-room))
+	for j := d.offset; j < min(len(body), d.offset+room); j++ {
+		i := sort.SearchInts(starts, j+1) - 1 // the last finding starting at or before j
+		a.boxZone(len(lines)+j-d.offset, 0, zone{w: w,
+			click: func() tea.Cmd { d.cursor = i; return nil },
+			dbl:   func() tea.Cmd { d.cursor = i; return a.doctorKey("enter") },
+		})
+	}
 	lines = append(lines, body[d.offset:min(len(body), d.offset+room)]...)
 	lines = append(lines, "", st.dim.Render("↑↓ move · enter opens the line · y copies the fix · esc closes"))
 	for i, l := range lines {
@@ -127,5 +137,5 @@ func (a *App) renderDoctor() string {
 			lines[i] = ansi.Truncate(l, w, "…")
 		}
 	}
-	return a.boxed(st.box, lines)
+	return a.wheelOver(a.boxed(st.box, lines), wheelKeys(a.doctorKey))
 }
