@@ -217,14 +217,6 @@ args = ["{alias}"]
 key = "f"
 mode = "terminal"
 enabled = true
-
-[[tools]]
-name = "mosh"
-cmd = "mosh"
-args = ["{alias}"]
-key = "M"
-mode = "terminal"
-enabled = false
 ```
 
 Tool placeholders: `{alias}`, `{hostname}`, `{user}`, `{port}`, `{home}` (`/home/<user>`, or `/root`).

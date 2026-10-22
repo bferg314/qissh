@@ -18,7 +18,7 @@ import (
 // Tool launch modes.
 const (
 	// ModeTerminal suspends the TUI and hands the terminal to the tool
-	// (sftp, mosh, ...). qissh resumes when it exits.
+	// (sftp, ...). qissh resumes when it exits.
 	ModeTerminal = "terminal"
 	// ModeDetach starts the tool in the background and returns immediately
 	// (VS Code and other GUI apps).
@@ -124,7 +124,8 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	cfg.fill()
-	if enabled := cfg.EnableInstalled(); len(enabled) > 0 {
+	dropped := cfg.dropOldTools()
+	if enabled := cfg.EnableInstalled(); len(enabled) > 0 || dropped {
 		if err := cfg.Save(path); err != nil {
 			return nil, err
 		}
@@ -213,9 +214,28 @@ func Default() *Config {
 		Tools: []Tool{
 			{Name: "VS Code", Cmd: "code", Args: []string{"--remote", "ssh-remote+{alias}", "{home}"}, Key: "o", Mode: ModeDetach},
 			{Name: "SFTP", Cmd: "sftp", Args: []string{"{alias}"}, Key: "f", Mode: ModeTerminal},
-			{Name: "mosh", Cmd: "mosh", Args: []string{"{alias}"}, Key: "M", Mode: ModeTerminal},
 		},
 	}
+}
+
+// droppedTools are tools qissh used to add by default. A config still
+// holding one exactly as it was added loses it on load; one that was
+// changed by hand is kept.
+var droppedTools = []Tool{
+	{Name: "mosh", Cmd: "mosh", Args: []string{"{alias}"}, Key: "M", Mode: ModeTerminal},
+}
+
+// dropOldTools removes droppedTools from the config, reporting whether
+// any were there.
+func (c *Config) dropOldTools() bool {
+	n := len(c.Tools)
+	c.Tools = slices.DeleteFunc(c.Tools, func(t Tool) bool {
+		return slices.ContainsFunc(droppedTools, func(d Tool) bool {
+			return t.Name == d.Name && t.Cmd == d.Cmd && slices.Equal(t.Args, d.Args) &&
+				t.Key == d.Key && t.Mode == d.Mode && !t.InPlace
+		})
+	})
+	return len(c.Tools) < n
 }
 
 // Interval is CheckInterval as a duration; 0 means no repeat checks.

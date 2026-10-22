@@ -69,11 +69,11 @@ func TestLoadFillsBadValues(t *testing.T) {
 
 func TestEnableInstalled(t *testing.T) {
 	dir := fakePath(t, "sftp")
-	c := &Config{Tools: []Tool{{Name: "SFTP", Cmd: "sftp"}, {Name: "mosh", Cmd: "mosh"}, {Name: "VS Code", Cmd: "code"}}}
+	c := &Config{Tools: []Tool{{Name: "SFTP", Cmd: "sftp"}, {Name: "htop", Cmd: "htop"}, {Name: "VS Code", Cmd: "code"}}}
 	c.DetectTools()
 	c.Tools[2].AutoDisabled = false // turned off by hand
-	fakeInstall(t, dir, "mosh", "code")
-	if got := c.EnableInstalled(); strings.Join(got, ",") != "mosh" || c.Tools[2].Enabled {
+	fakeInstall(t, dir, "htop", "code")
+	if got := c.EnableInstalled(); strings.Join(got, ",") != "htop" || c.Tools[2].Enabled {
 		t.Fatalf("got %v, tools %+v", got, c.Tools)
 	}
 }
@@ -100,5 +100,43 @@ func TestCustomSSHConfig(t *testing.T) {
 	}
 	if !(&Config{SSHConfig: "~/other/config"}).CustomSSHConfig() {
 		t.Error("another file needs -F")
+	}
+}
+
+func TestDropsOldDefaultTools(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	os.WriteFile(path, []byte(`[[tools]]
+name = "SFTP"
+cmd = "sftp"
+args = ["{alias}"]
+key = "f"
+mode = "terminal"
+
+[[tools]]
+name = "mosh"
+cmd = "mosh"
+args = ["{alias}"]
+key = "M"
+mode = "terminal"
+enabled = false
+auto_disabled = true
+
+[[tools]]
+name = "mosh"
+cmd = "mosh"
+args = ["--ssh=ssh -p 2222", "{alias}"]
+key = "M"
+mode = "terminal"
+`), 0o644)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Tools) != 2 || c.Tools[0].Name != "SFTP" || len(c.Tools[1].Args) != 2 {
+		t.Fatalf("the default mosh goes, a changed one stays: %+v", c.Tools)
+	}
+	again, _ := Load(path)
+	if len(again.Tools) != 2 {
+		t.Fatalf("and the file is saved without it: %+v", again.Tools)
 	}
 }

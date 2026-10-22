@@ -69,7 +69,7 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 - `x` runs a command on the host, or on every selected host, `i` fetches its facts and `T` starts and stops its tunnels (see below).
 - `*` pins a host to the top, `h` hides one, `H` shows hidden hosts.
 - `s` sorts by most used, name or file order. `r` reloads.
-- Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), `f` starts `sftp`, and `M` starts `mosh` when it's installed.
+- Tools run with their own key: `o` opens the host in VS Code (Remote - SSH), and `f` starts `sftp`. Add your own under `[[tools]]` in the config.
 
 **Tags, web page and notes** are QiSSH's own and are kept in its `config.toml`, never in your ssh config. Tags show in a TAGS column and in the filter: `/home` finds hosts tagged `home` as well as matching names, and `/#home` finds only tagged ones. The web page (`http://nas:5000`, or just `nas:5000`) opens with `w`, and notes show in the detail pane. Renaming a host keeps them; deleting it drops them.
 
