@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
 )
 
 // HostKey is what's needed to fix a changed or unknown host key: the key
@@ -65,7 +65,7 @@ func KnownHostsFile(res *resolve.Resolved) string {
 func ScanHostKey(ctx context.Context, r run.Runner, o resolve.Options, alias string, res *resolve.Resolved) (*HostKey, error) {
 	hk := &HostKey{Alias: alias, Name: knownHostsName(res), KnownHosts: KnownHostsFile(res)}
 
-	dir, err := os.MkdirTemp("", "quick-ssh-hostkey-")
+	dir, err := os.MkdirTemp("", "qissh-hostkey-")
 	if err != nil {
 		return nil, err
 	}

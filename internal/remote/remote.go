@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
 )
 
 var batch = []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=8"}

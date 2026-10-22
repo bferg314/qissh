@@ -16,8 +16,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
 // The form's fields, in order.
@@ -28,7 +28,7 @@ const (
 	fPort
 	fIdentity
 	fJump
-	// The rest are quick-ssh's own, kept in config.toml.
+	// The rest are qissh's own, kept in config.toml.
 	fTags
 	fWeb
 	fNotes
@@ -249,7 +249,7 @@ func (a *App) saveForm() tea.Cmd {
 	}
 	fields, meta := f.fields(), f.meta()
 	if f.host != nil && fields == f.orig {
-		// Only quick-ssh's own fields changed: the ssh config stays as it is.
+		// Only qissh's own fields changed: the ssh config stays as it is.
 		a.form = nil
 		if sameMeta(meta, f.origMeta) {
 			return a.notify(0, "No changes")
@@ -284,7 +284,7 @@ func (a *App) deleteHost() tea.Cmd {
 		a.form.err = err.Error()
 		return nil
 	}
-	return a.writeFile(file, savedMsg{alias: h.Alias, deleted: true}, "quick-ssh-check")
+	return a.writeFile(file, savedMsg{alias: h.Alias, deleted: true}, "qissh-check")
 }
 
 // mainFile is a copy of the main config to add hosts to, or an empty file
@@ -427,7 +427,7 @@ func (a *App) renderForm() string {
 
 	for i := range f.inputs {
 		if i == fTags {
-			lines = append(lines, "", "  "+st.dim.Render("quick-ssh's own, kept in config.toml"))
+			lines = append(lines, "", "  "+st.dim.Render("qissh's own, kept in config.toml"))
 		}
 		in := f.inputs[i]
 		in.SetWidth(inputW)
@@ -481,12 +481,12 @@ func (t *hostsTab) focus(alias string) {
 	}
 }
 
-// backupDir is where config backups are kept: backups in quick-ssh's cache
+// backupDir is where config backups are kept: backups in qissh's cache
 // folder.
 func backupDir() string {
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "quick-ssh", "backups")
+	return filepath.Join(dir, "qissh", "backups")
 }

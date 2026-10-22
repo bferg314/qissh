@@ -13,8 +13,8 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/keys"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/keys"
 )
 
 type keysTab struct {
@@ -140,7 +140,7 @@ func (a *App) keyActions(k *keys.Key) tea.Cmd {
 
 // ---- running things in the terminal ----
 
-// terminalJob runs programs in the terminal quick-ssh hands over, one
+// terminalJob runs programs in the terminal qissh hands over, one
 // after another, so they can ask for passwords and passphrases. When one
 // fails it waits for enter, so its complaint can be read before the
 // dashboard comes back.
@@ -184,7 +184,7 @@ func (j *terminalJob) Run() error {
 		}
 	}
 	if failed {
-		fmt.Fprint(j.stdout, "\nPress enter to go back to quick-ssh.")
+		fmt.Fprint(j.stdout, "\nPress enter to go back to qissh.")
 		_, _ = bufio.NewReader(j.stdin).ReadString('\n')
 	}
 	return nil

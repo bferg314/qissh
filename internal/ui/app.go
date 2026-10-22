@@ -1,4 +1,4 @@
-// Package ui is quick-ssh's Bubble Tea interface.
+// Package ui is qissh's Bubble Tea interface.
 package ui
 
 import (
@@ -14,15 +14,15 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/doctor"
-	"github.com/bferg314/quick-ssh/internal/history"
-	"github.com/bferg314/quick-ssh/internal/keys"
-	"github.com/bferg314/quick-ssh/internal/remote"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
-	"github.com/bferg314/quick-ssh/internal/tunnel"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/doctor"
+	"github.com/bferg314/qissh/internal/history"
+	"github.com/bferg314/qissh/internal/keys"
+	"github.com/bferg314/qissh/internal/remote"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
+	"github.com/bferg314/qissh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/tunnel"
 )
 
 const (
@@ -42,10 +42,10 @@ const chromeLines = 3
 const resolveWorkers = 8
 
 // watchInterval is how often the ssh config files are checked for changes
-// made outside quick-ssh.
+// made outside qissh.
 const watchInterval = 2 * time.Second
 
-// Keys quick-ssh handles itself on the Hosts tab; tools bound to these are
+// Keys qissh handles itself on the Hosts tab; tools bound to these are
 // shadowed.
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "s": true, "m": true, "d": true, "y": true,
@@ -187,7 +187,7 @@ func New(o Options) *App {
 		sem:       make(chan struct{}, resolveWorkers),
 		tunnels:   tunnel.NewManager(o.StartTunnel),
 		fetching:  map[string]bool{},
-		// Buffered so a tunnel ending while quick-ssh is busy doesn't block.
+		// Buffered so a tunnel ending while qissh is busy doesn't block.
 		tunnelEnded: make(chan tunnelEndMsg, 64),
 	}
 	factsPath := o.FactsPath
@@ -612,12 +612,12 @@ func (a *App) updateFilter(msg tea.Msg) tea.Cmd {
 }
 
 // setTab switches tabs. Opening Settings re-checks for tools installed
-// while quick-ssh was running.
+// while qissh was running.
 func (a *App) setTab(tab int) tea.Cmd {
 	a.tab = tab
 	switch tab {
 	case tabKeys:
-		return a.loadKeys() // keys made or loaded outside quick-ssh
+		return a.loadKeys() // keys made or loaded outside qissh
 	case tabDiscover:
 		return tea.Batch(a.loadKnownHosts(), a.loadTailscale()) // machines joined or connected to since
 	}
@@ -654,7 +654,7 @@ func (a *App) saveConfig() tea.Cmd {
 func (a *App) View() tea.View {
 	v := tea.NewView(a.render())
 	v.AltScreen = true
-	v.WindowTitle = "quick-ssh"
+	v.WindowTitle = "qissh"
 	return v
 }
 
@@ -732,7 +732,7 @@ func padLines(s string, h, w int) string {
 }
 
 func (a *App) renderHeader() string {
-	logo := a.st.logo.Render(" ◆ quick-ssh ")
+	logo := a.st.logo.Render(" ◆ qissh ")
 	counts := []string{fmt.Sprintf("%d", len(a.ssh.Hosts)-a.hosts.hiddenCount()), "", "", ""}
 	if a.disc.loaded && len(a.disc.view) > 0 {
 		counts[tabDiscover] = fmt.Sprintf("%d", len(a.disc.view))

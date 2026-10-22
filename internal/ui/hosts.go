@@ -13,11 +13,11 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sahilm/fuzzy"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/history"
-	"github.com/bferg314/quick-ssh/internal/launcher"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
-	"github.com/bferg314/quick-ssh/internal/status"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/history"
+	"github.com/bferg314/qissh/internal/launcher"
+	"github.com/bferg314/qissh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/status"
 )
 
 type sortMode int

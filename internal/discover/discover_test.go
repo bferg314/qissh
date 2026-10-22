@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 const knownHosts = `# a comment

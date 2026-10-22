@@ -10,7 +10,7 @@ import (
 // spaces, trailing comment); a new option is added at the end of the
 // block's options with the block's indent; nothing else moves.
 
-// Canonical is the usual spelling of the keywords quick-ssh writes.
+// Canonical is the usual spelling of the keywords qissh writes.
 var Canonical = map[string]string{
 	"host":         "Host",
 	"hostname":     "HostName",

@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// HostMeta is what quick-ssh keeps about a host that ssh config has no
+// HostMeta is what qissh keeps about a host that ssh config has no
 // place for.
 type HostMeta struct {
 	Tags  []string `toml:"tags,omitempty"`

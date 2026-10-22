@@ -9,10 +9,10 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/keys"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/keys"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
 // Below this width the pane can't sit beside the list; d then shows it
@@ -331,7 +331,7 @@ func (a *App) appendHistory(h *sshconfig.Host, add func(string), section func(st
 	section("HISTORY")
 	e := a.hist.Get(h.Alias)
 	if e == nil {
-		add(st.faintText.Render("never connected from quick-ssh"))
+		add(st.faintText.Render("never connected from qissh"))
 		return
 	}
 	add(st.agoStyle(e.Last).Render("last "+ago(e.Last)) + st.dim.Render(fmt.Sprintf(" · %d %s", e.Count, plural(e.Count, "connection", "connections"))))

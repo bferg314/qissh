@@ -9,11 +9,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/probe"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
-	"github.com/bferg314/quick-ssh/internal/status"
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/probe"
+	"github.com/bferg314/qissh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/status"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 // dialWorkers is how many reachability checks run at once.

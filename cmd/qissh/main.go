@@ -1,6 +1,6 @@
-// Command quick-ssh is a terminal dashboard for the hosts in ~/.ssh/config:
+// Command qissh is a terminal dashboard for the hosts in ~/.ssh/config:
 // connect with a key press, see where each host is defined, and edit it.
-// The shell integration (quick-ssh init <shell>) runs it as qs.
+// The shell integration (qissh init <shell>) runs it as qs.
 package main
 
 import (
@@ -20,15 +20,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/sahilm/fuzzy"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/doctor"
-	"github.com/bferg314/quick-ssh/internal/history"
-	"github.com/bferg314/quick-ssh/internal/keys"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
-	"github.com/bferg314/quick-ssh/internal/shell"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
-	"github.com/bferg314/quick-ssh/internal/ui"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/doctor"
+	"github.com/bferg314/qissh/internal/history"
+	"github.com/bferg314/qissh/internal/keys"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
+	"github.com/bferg314/qissh/internal/shell"
+	"github.com/bferg314/qissh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/ui"
 )
 
 var version = "dev"
@@ -43,15 +43,15 @@ func main() {
 	cmdFile := flag.String("cmd-file", "", "write the ssh command here instead of running it (used by the shell wrapper)")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage:
-  quick-ssh                   the dashboard
-  quick-ssh <host>            connect: an exact alias or the only fuzzy match, else the dashboard, filtered
-  quick-ssh -                 reconnect to the last host
-  quick-ssh ls [--json|--names]
+  qissh                   the dashboard
+  qissh <host>            connect: an exact alias or the only fuzzy match, else the dashboard, filtered
+  qissh -                 reconnect to the last host
+  qissh ls [--json|--names]
                               list hosts
-  quick-ssh check [--login] [host...]
+  qissh check [--login] [host...]
                               which hosts are up (exit status 1 if any are down)
-  quick-ssh doctor            mistakes in your ssh config (exit status 1 if any need fixing)
-  quick-ssh init <shell>      print shell integration (%s), which defines qs
+  qissh doctor            mistakes in your ssh config (exit status 1 if any need fixing)
+  qissh init <shell>      print shell integration (%s), which defines qs
 
 Flags:
 `, strings.Join(shell.Names(), ", "))
@@ -59,10 +59,14 @@ Flags:
 	}
 	flag.Parse()
 
+	if err := config.MoveOldFolders(); err != nil {
+		fmt.Fprintln(os.Stderr, "qissh: moving quick-ssh's folders:", err)
+	}
+
 	var err error
 	switch {
 	case *showVersion:
-		fmt.Println("quick-ssh", version)
+		fmt.Println("qissh", version)
 	case flag.Arg(0) == "init":
 		err = runInit(flag.Arg(1))
 	case flag.Arg(0) == "ls":
@@ -82,7 +86,7 @@ Flags:
 	case errors.As(err, &code):
 		os.Exit(int(code))
 	case err != nil:
-		fmt.Fprintln(os.Stderr, "quick-ssh:", err)
+		fmt.Fprintln(os.Stderr, "qissh:", err)
 		os.Exit(1)
 	}
 }
@@ -165,7 +169,7 @@ func runMain(query, cmdFile string) error {
 		CmdFile:    cmdFile,
 	})
 	_, err = tea.NewProgram(app).Run()
-	app.StopTunnels() // they're ssh processes quick-ssh started
+	app.StopTunnels() // they're ssh processes qissh started
 	if err != nil {
 		return err
 	}
@@ -241,7 +245,7 @@ func finish(o ui.Outcome, cmdFile string) error {
 	cmd := exec.Command(o.Argv[0], o.Argv[1:]...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 
-	// Ctrl+C belongs to the session, not to quick-ssh waiting for it.
+	// Ctrl+C belongs to the session, not to qissh waiting for it.
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
 	defer signal.Stop(sig)

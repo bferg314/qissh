@@ -9,8 +9,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/probe"
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/probe"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 // reach feeds a reachability result for alias.

@@ -1,6 +1,6 @@
 // Package resolve asks ssh what it will actually use for a host. `ssh -G`
 // applies Host * defaults, Match blocks, Includes and first-match-wins
-// ordering, so quick-ssh never has to reimplement those rules.
+// ordering, so qissh never has to reimplement those rules.
 package resolve
 
 import (
@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/run"
+	"github.com/bferg314/qissh/internal/run"
 )
 
 // Resolved is a host's effective configuration.

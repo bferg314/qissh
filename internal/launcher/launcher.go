@@ -1,4 +1,4 @@
-// Package launcher builds the commands quick-ssh starts: ssh sessions,
+// Package launcher builds the commands qissh starts: ssh sessions,
 // tools, editors, and the terminal tabs they can open in.
 package launcher
 
@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bferg314/quick-ssh/internal/config"
+	"github.com/bferg314/qissh/internal/config"
 )
 
 // Vars are what a tool's arguments can refer to.
@@ -56,10 +56,10 @@ func Command(t config.Tool, v Vars) *exec.Cmd {
 	return exec.Command(t.Cmd, args...)
 }
 
-// InZellij reports whether quick-ssh is running inside a zellij session.
+// InZellij reports whether qissh is running inside a zellij session.
 func InZellij() bool { return os.Getenv("ZELLIJ") != "" }
 
-// InWindowsTerminal reports whether quick-ssh is running inside Windows
+// InWindowsTerminal reports whether qissh is running inside Windows
 // Terminal.
 func InWindowsTerminal() bool {
 	return runtime.GOOS == "windows" && os.Getenv("WT_SESSION") != ""
@@ -80,7 +80,7 @@ func WTTab(name string, argv []string) *exec.Cmd {
 }
 
 // resolve replaces argv[0] with the path found on PATH, so the new tab
-// runs what quick-ssh found rather than whatever its shell finds.
+// runs what qissh found rather than whatever its shell finds.
 func resolve(argv []string) []string {
 	out := append([]string{}, argv...)
 	if p, err := exec.LookPath(out[0]); err == nil {

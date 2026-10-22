@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/doctor"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/doctor"
 )
 
 // runDoctor re-checks the config; it's cheap (a stat per IdentityFile),

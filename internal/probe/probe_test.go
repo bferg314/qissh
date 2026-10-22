@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/resolve"
+	"github.com/bferg314/qissh/internal/resolve"
 )
 
 func TestDial(t *testing.T) {

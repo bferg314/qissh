@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
 )
 
 // Reach is the result of a TCP connect to a host's ssh port.

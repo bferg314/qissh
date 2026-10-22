@@ -8,8 +8,8 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/tunnel"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/tunnel"
 )
 
 // tunnelEndMsg is a tunnel's ssh exiting; err is nil when it was stopped.

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
 )
 
 // Spec is a forward: Kind L (local), R (remote) or D (dynamic, a SOCKS

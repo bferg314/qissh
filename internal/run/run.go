@@ -1,4 +1,4 @@
-// Package run is how quick-ssh calls ssh and its helper programs. All of
+// Package run is how qissh calls ssh and its helper programs. All of
 // it goes through Runner so tests can swap in a fake.
 package run
 

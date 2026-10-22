@@ -11,7 +11,7 @@ func TestScript(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(s, "QSNAME") || !strings.Contains(s, "quick-ssh ls --names") || !strings.Contains(s, "--cmd-file") {
+		if strings.Contains(s, "QSNAME") || !strings.Contains(s, "qissh ls --names") || !strings.Contains(s, "--cmd-file") {
 			t.Errorf("%s script:\n%s", sh, s)
 		}
 		if Install(sh) == "" {

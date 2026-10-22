@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 // KnownHost is one plain (not hashed) entry in known_hosts.

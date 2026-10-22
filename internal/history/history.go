@@ -30,7 +30,7 @@ func DefaultPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "quick-ssh", "history.json"), nil
+	return filepath.Join(dir, "qissh", "history.json"), nil
 }
 
 // Load reads the history at path. A missing or unreadable file is an

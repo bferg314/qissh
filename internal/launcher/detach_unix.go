@@ -8,6 +8,6 @@ import (
 )
 
 func detachAttrs(cmd *exec.Cmd) {
-	// New session: the tool survives quick-ssh exiting or the terminal closing.
+	// New session: the tool survives qissh exiting or the terminal closing.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 }

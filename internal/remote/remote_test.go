@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/resolve"
+	"github.com/bferg314/qissh/internal/resolve"
 )
 
 type exitErr int

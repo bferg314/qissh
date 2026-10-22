@@ -12,9 +12,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/history"
-	"github.com/bferg314/quick-ssh/internal/resolve"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/history"
+	"github.com/bferg314/qissh/internal/resolve"
 )
 
 const testSSHConfig = `# test hosts
@@ -129,7 +129,7 @@ func newTestApp(t *testing.T, w, h int) *testEnv {
 	t.Helper()
 	t.Setenv("ZELLIJ", "")
 	t.Setenv("WT_SESSION", "")
-	t.Setenv("VISUAL", "quick-ssh-test-no-editor")
+	t.Setenv("VISUAL", "qissh-test-no-editor")
 	old := writeClipboard
 	writeClipboard = func(string) error { return nil }
 	t.Cleanup(func() { writeClipboard = old })

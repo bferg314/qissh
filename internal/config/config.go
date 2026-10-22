@@ -1,4 +1,4 @@
-// Package config loads and saves quick-ssh's TOML configuration.
+// Package config loads and saves qissh's TOML configuration.
 package config
 
 import (
@@ -18,7 +18,7 @@ import (
 // Tool launch modes.
 const (
 	// ModeTerminal suspends the TUI and hands the terminal to the tool
-	// (sftp, mosh, ...). quick-ssh resumes when it exits.
+	// (sftp, mosh, ...). qissh resumes when it exits.
 	ModeTerminal = "terminal"
 	// ModeDetach starts the tool in the background and returns immediately
 	// (VS Code and other GUI apps).
@@ -37,7 +37,7 @@ const (
 // ConnectModes lists the modes in the order Settings cycles through them.
 var ConnectModes = []string{ConnectAuto, ConnectInPlace, ConnectZellij, ConnectWT, ConnectShell}
 
-// DefaultSSHConfig is the user's ssh config. quick-ssh only passes -F to
+// DefaultSSHConfig is the user's ssh config. qissh only passes -F to
 // ssh when SSHConfig is set to something else.
 const DefaultSSHConfig = "~/.ssh/config"
 
@@ -50,10 +50,10 @@ type Tool struct {
 	Key     string   `toml:"key"`
 	Mode    string   `toml:"mode"`
 	Enabled bool     `toml:"enabled"`
-	// InPlace keeps a terminal tool in quick-ssh's own terminal even
+	// InPlace keeps a terminal tool in qissh's own terminal even
 	// inside zellij.
 	InPlace bool `toml:"in_place,omitempty"`
-	// AutoDisabled marks a tool quick-ssh switched off because its command
+	// AutoDisabled marks a tool qissh switched off because its command
 	// wasn't installed. It is switched back on once the command appears.
 	// Toggling a tool by hand clears it, so user choices stick.
 	AutoDisabled bool `toml:"auto_disabled,omitempty"`
@@ -66,7 +66,7 @@ type Config struct {
 	// SSHConfig is the ssh config file to read and edit. Supports ~ and
 	// environment variables.
 	SSHConfig string `toml:"ssh_config"`
-	// AliasName is the shell function `quick-ssh init` defines.
+	// AliasName is the shell function `qissh init` defines.
 	AliasName   string `toml:"alias_name"`
 	ConnectMode string `toml:"connect_mode"`
 	// StayOpen returns to the list after an in-place session ends,
@@ -102,7 +102,7 @@ func Path() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "quick-ssh", "config.toml"), nil
+	return filepath.Join(dir, "qissh", "config.toml"), nil
 }
 
 // configVersion is the current config format.
@@ -155,10 +155,10 @@ func (c *Config) Save(path string) error {
 		return err
 	}
 	var buf bytes.Buffer
-	buf.WriteString("# quick-ssh configuration\n" +
+	buf.WriteString("# qissh configuration\n" +
 		"# connect_mode: auto, in_place, zellij, wt or shell\n" +
 		"# Tool args: {alias}, {hostname}, {user}, {port} and {home} are replaced.\n" +
-		"# Tool modes: \"terminal\" (suspends quick-ssh) or \"detach\" (runs in background).\n\n")
+		"# Tool modes: \"terminal\" (suspends qissh) or \"detach\" (runs in background).\n\n")
 	if err := toml.NewEncoder(&buf).Encode(c); err != nil {
 		return err
 	}

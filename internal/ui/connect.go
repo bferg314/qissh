@@ -7,13 +7,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/launcher"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/launcher"
+	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
 // SSHArgv is the command that connects to alias: plain `ssh alias`, plus
-// -F when quick-ssh is pointed at another config file.
+// -F when qissh is pointed at another config file.
 func SSHArgv(cfg *config.Config, alias string) []string {
 	var args []string
 	if cfg.CustomSSHConfig() {
@@ -46,11 +46,11 @@ func (a *App) connect(aliases ...string) tea.Cmd {
 	switch mode {
 	case config.ConnectZellij:
 		if !launcher.InZellij() {
-			return a.notify(2, "connect_mode is zellij, but quick-ssh isn't running inside zellij")
+			return a.notify(2, "connect_mode is zellij, but qissh isn't running inside zellij")
 		}
 	case config.ConnectWT:
 		if !launcher.InWindowsTerminal() {
-			return a.notify(2, "connect_mode is wt, but quick-ssh isn't running inside Windows Terminal")
+			return a.notify(2, "connect_mode is wt, but qissh isn't running inside Windows Terminal")
 		}
 	default:
 		if len(aliases) > 1 {
@@ -102,7 +102,7 @@ func (a *App) connect(aliases ...string) tea.Cmd {
 		})
 	}
 	// Quit first and let main run ssh, so the session gets a clean terminal
-	// rather than one quick-ssh is about to redraw.
+	// rather than one qissh is about to redraw.
 	a.outcome = Outcome{Argv: argv, ViaShell: mode == config.ConnectShell && a.cmdFile != ""}
 	return tea.Quit
 }

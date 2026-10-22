@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
+	"github.com/bferg314/qissh/internal/config"
 )
 
 // helpKey scrolls the help when it's taller than the screen; any other

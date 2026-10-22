@@ -7,8 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/remote"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/remote"
 )
 
 type factsMsg struct {

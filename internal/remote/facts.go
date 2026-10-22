@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/keys"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
+	"github.com/bferg314/qissh/internal/keys"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
 )
 
 // Facts describe a host, as of At.
@@ -91,7 +91,7 @@ func GetFacts(ctx context.Context, r run.Runner, o resolve.Options, alias string
 	if res.Err != nil {
 		f.Err = res.Err.Error()
 	} else if f.Kernel == "" && f.OS == "" {
-		f.Err = "the host printed nothing quick-ssh understands"
+		f.Err = "the host printed nothing qissh understands"
 		if l := lastLine(res.Output); l != "" {
 			f.Err += ": " + l
 		}
@@ -157,13 +157,13 @@ type Cache struct {
 	Hosts map[string]Facts `json:"hosts"` // by lowercase alias
 }
 
-// DefaultCachePath is facts.json in quick-ssh's cache folder.
+// DefaultCachePath is facts.json in qissh's cache folder.
 func DefaultCachePath() string {
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "quick-ssh", "facts.json")
+	return filepath.Join(dir, "qissh", "facts.json")
 }
 
 // LoadCache reads the cache; a missing or broken file is an empty cache.

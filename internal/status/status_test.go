@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/probe"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/probe"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 func TestOf(t *testing.T) {

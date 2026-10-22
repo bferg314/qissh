@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/keys"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/keys"
+	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
 const cfg = `Host *

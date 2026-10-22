@@ -8,8 +8,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
 // Powerline glyphs (need a Nerd Font / Powerline font).
@@ -276,7 +276,7 @@ func (a *App) barPath() string {
 	return ""
 }
 
-// barActivity shows the latest message, or what quick-ssh is busy with.
+// barActivity shows the latest message, or what qissh is busy with.
 func (a *App) barActivity() segment {
 	st := a.st
 	if a.toast.text != "" {

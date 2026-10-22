@@ -11,9 +11,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/keys"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/keys"
+	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
 // Level is how much a finding matters.

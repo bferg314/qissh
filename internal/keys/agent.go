@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/run"
+	"github.com/bferg314/qissh/internal/run"
 )
 
 // Agent is what ssh-agent holds, as `ssh-add -l` lists it.

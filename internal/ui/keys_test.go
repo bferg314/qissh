@@ -16,9 +16,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/keys"
-	"github.com/bferg314/quick-ssh/internal/probe"
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/keys"
+	"github.com/bferg314/qissh/internal/probe"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 func sshString(b []byte) []byte {
@@ -27,7 +27,7 @@ func sshString(b []byte) []byte {
 
 // writeTestKeys puts two key pairs in dir: id_ed25519 without a
 // passphrase and work with one. The private files hold only the header
-// quick-ssh reads. It returns id_ed25519's fingerprint.
+// qissh reads. It returns id_ed25519's fingerprint.
 func writeTestKeys(t *testing.T, dir string) string {
 	t.Helper()
 	os.MkdirAll(dir, 0o700)

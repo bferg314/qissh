@@ -10,13 +10,13 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/probe"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/run"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
-	"github.com/bferg314/quick-ssh/internal/status"
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/probe"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/run"
+	"github.com/bferg314/qissh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/status"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 // runCheck reports which hosts are up, like the dashboard's status

@@ -1,4 +1,4 @@
-# quick-ssh design
+# QiSSH design
 
 A terminal dashboard for the hosts in `~/.ssh/config`: see which are up, connect with one key, and add, edit or remove them without opening the file. Written in Go with the same stack, look and conventions as [folgit](https://github.com/bferg314/folgit), and launched as `qs`.
 
@@ -8,7 +8,7 @@ qs oak            # connect straight away (exact or unique fuzzy match), else op
 qs -              # reconnect to the last host
 ```
 
-This is the plan quick-ssh is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1, M2, M4, M5 and M6 done; M3's new, edit and delete done early (`qs add` still to come).**
+This is the plan QiSSH is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1, M2, M4, M5 and M6 done; M3's new, edit and delete done early (`qs add` still to come).**
 
 ## 1. Goals and non-goals
 
@@ -17,12 +17,12 @@ This is the plan quick-ssh is being built from, kept up to date with what's buil
 - From any shell, `qs` → a couple of keystrokes → an SSH session. Faster than remembering aliases.
 - One screen that answers "which of my machines are up, and how do I get to each of them?"
 - Add, edit, duplicate and delete hosts in `~/.ssh/config` **without losing anything already in the file**: comments, blank lines, ordering, indentation, keyword case and line endings all survive.
-- `~/.ssh/config` stays the source of truth. `ssh <alias>` keeps working exactly as before; quick-ssh never connects in a way plain `ssh` wouldn't.
+- `~/.ssh/config` stays the source of truth. `ssh <alias>` keeps working exactly as before; QiSSH never connects in a way plain `ssh` wouldn't.
 - Works the same on Windows (built-in OpenSSH), macOS and Linux.
 
 **Non-goals (v1)**
 
-- An SSH client of its own. quick-ssh always runs the system `ssh`, so agents, `ProxyJump`, `ControlMaster`, FIDO keys and anything else in your config just work.
+- An SSH client of its own. QiSSH always runs the system `ssh`, so agents, `ProxyJump`, `ControlMaster`, FIDO keys and anything else in your config just work.
 - Storing passwords or secrets. Auth is keys and agents, as with plain `ssh`.
 - Editing `Match` blocks or `Host *` defaults through forms. They're shown, and `E` opens the file in your editor at the right line.
 - Replacing a file manager or terminal multiplexer. Transfers and tabs hand off to existing tools.
@@ -31,7 +31,7 @@ This is the plan quick-ssh is being built from, kept up to date with what's buil
 
 Separate repo; code is copied, not shared, as with dockgit.
 
-| folgit package | Use in quick-ssh |
+| folgit package | Use in QiSSH |
 |---|---|
 | `internal/ui/styles.go` | As is: palette, light/dark detection, tab styles. |
 | `internal/ui/statusbar.go` | Modes become `HOSTS`, `DISCOVER`, `KEYS`, `SETTINGS`, `FILTER`, `EDIT`, `RUN`. Right side: hosts up/down, running tunnels, position, `? help`. |
@@ -40,7 +40,7 @@ Separate repo; code is copied, not shared, as with dockgit.
 | `internal/config` | `ExpandPath`, `~` and env var handling, versioned TOML, pinned/hidden marks. New schema (§8). |
 | `internal/cache` | Not copied: no startup cache was needed (Decisions, 1). Connection history has its own small package. |
 | `internal/launcher` | Tools (detach / terminal), zellij tabs, `OpenURL`. Adds Windows Terminal tabs. |
-| `internal/shell` | `quick-ssh init <shell>`, now defining `qs` plus completion of host aliases (§6). |
+| `internal/shell` | `qissh init <shell>`, now defining `qs` plus completion of host aliases (§6). |
 
 Same dependencies: `charm.land/bubbletea/v2`, `bubbles/v2`, `lipgloss/v2`, `BurntSushi/toml`, `sahilm/fuzzy`. No SSH library: everything goes through the `ssh`, `ssh-keygen`, `ssh-add` and (optionally) `tailscale` commands behind one `Runner` interface, so the UI is tested with a fake, exactly as dockgit does with `docker`.
 
@@ -53,7 +53,7 @@ This is the core of the project and the part most worth getting right.
 ### Two views of the same file
 
 1. **The file as written:** a lossless parser (`internal/sshconfig`) turns the file into blocks (a preamble, then `Host` and `Match` blocks), each line kept raw with its indent, keyword spelling (`HostName`, `hostname`, `Hostname` all appear in real files), `key value` vs `key=value` form, quoting, trailing comment and line ending. Writing an unchanged tree back is byte-identical; that's a test, not a hope.
-2. **What ssh will actually use:** `ssh -G <alias>` for each host, run 8 at a time and cached against the files' modification times. This is authoritative: it applies `Host *` defaults, `Match` blocks, `Include`s, first-match-wins ordering and `%h`-style tokens, so quick-ssh never has to reimplement ssh's rules to know the effective `HostName`, `User`, `Port`, `IdentityFile` or `ProxyJump`.
+2. **What ssh will actually use:** `ssh -G <alias>` for each host, run 8 at a time and cached against the files' modification times. This is authoritative: it applies `Host *` defaults, `Match` blocks, `Include`s, first-match-wins ordering and `%h`-style tokens, so QiSSH never has to reimplement ssh's rules to know the effective `HostName`, `User`, `Port`, `IdentityFile` or `ProxyJump`.
 
 The detail pane shows the effective values and marks the ones inherited from elsewhere (`Host *`, a `Match` block, an included file).
 
@@ -67,7 +67,7 @@ The detail pane shows the effective values and marks the ones inherited from els
 
 - **Minimal edits.** Changing a value rewrites that one line; adding a key appends a line to the block using the block's indent and the file's keyword style; removing a host removes its block and the comment lines directly above it.
 - **Placement of new hosts.** ssh uses the *first* value it finds for each key, so a new host goes before the first `Host *` or `Match` block (or at the end if there is none), never after defaults that would override it.
-- **Safe replacement.** Write to a temp file in the same folder → validate with `ssh -F <temp> -G <alias>` → keep a backup (last 10 versions in quick-ssh's cache folder, plus `config.qs-bak` beside the file) → rename over the original. If validation fails nothing is replaced and the error from ssh is shown.
+- **Safe replacement.** Write to a temp file in the same folder → validate with `ssh -F <temp> -G <alias>` → keep a backup (last 10 versions in QiSSH's cache folder, plus `config.qs-bak` beside the file) → rename over the original. If validation fails nothing is replaced and the error from ssh is shown.
 - **Concurrent edits.** If the file changed on disk since it was read (mtime + hash), the edit is refused and the list reloads, as folgit does before deleting a repo.
 - **Windows permissions.** OpenSSH for Windows rejects a config that other users can write to. The temp file is created in `.ssh` so it inherits the folder's ACL; after the rename, `ssh -G` is run once more and the backup is restored if it fails.
 - **Line endings** follow the file (CRLF stays CRLF). A brand-new file uses LF.
@@ -93,10 +93,10 @@ Where the session runs (`connect_mode`, default `auto`):
 
 | Mode | Behaviour |
 |---|---|
-| `in_place` | quick-ssh suspends (`tea.ExecProcess`) and the session takes over the terminal. When it ends, quick-ssh **quits** (it's a launcher), unless `stay_open = true`, in which case you're back in the list with a toast if ssh exited with an error. |
-| `zellij` | Inside zellij: a new tab named after the host, quick-ssh stays open (folgit's `ZellijTab`). |
-| `wt` | Inside Windows Terminal (`WT_SESSION` set): `wt -w 0 nt --title <alias> ssh <alias>`, quick-ssh stays open. |
-| `shell` | quick-ssh exits and the `qs` wrapper runs `ssh <alias>` in your own shell, so it lands in shell history. Uses a `--cmd-file` the way folgit's `g` uses `--cwd-file`. |
+| `in_place` | QiSSH suspends (`tea.ExecProcess`) and the session takes over the terminal. When it ends, QiSSH **quits** (it's a launcher), unless `stay_open = true`, in which case you're back in the list with a toast if ssh exited with an error. |
+| `zellij` | Inside zellij: a new tab named after the host, QiSSH stays open (folgit's `ZellijTab`). |
+| `wt` | Inside Windows Terminal (`WT_SESSION` set): `wt -w 0 nt --title <alias> ssh <alias>`, QiSSH stays open. |
+| `shell` | QiSSH exits and the `qs` wrapper runs `ssh <alias>` in your own shell, so it lands in shell history. Uses a `--cmd-file` the way folgit's `g` uses `--cwd-file`. |
 
 `auto` picks `zellij`, then `wt`, then `in_place`. With several hosts selected (`space`), `enter` opens one tab each (zellij and wt only).
 
@@ -104,16 +104,16 @@ Each connection is recorded (alias and time) in the cache, which powers "last co
 
 ## 6. CLI and the `qs` alias
 
-The binary is `quick-ssh` (so `go install …/cmd/quick-ssh@latest` works and nothing collides with an existing `qs`); the shell integration defines `qs`:
+The binary is `qissh` (so `go install …/cmd/qissh@latest` works and nothing collides with an existing `qs`); the shell integration defines `qs`:
 
 ```sh
-eval "$(quick-ssh init bash)"                                # ~/.bashrc
-eval "$(quick-ssh init zsh)"                                 # ~/.zshrc
-quick-ssh init fish | source                                 # ~/.config/fish/config.fish
-Invoke-Expression (& quick-ssh init powershell | Out-String)  # $PROFILE
+eval "$(qissh init bash)"                                # ~/.bashrc
+eval "$(qissh init zsh)"                                 # ~/.zshrc
+qissh init fish | source                                 # ~/.config/fish/config.fish
+Invoke-Expression (& qissh init powershell | Out-String)  # $PROFILE
 ```
 
-Each script defines `qs` (wrapping `quick-ssh` for `connect_mode = "shell"`) and **tab completion of host aliases** for `qs`, using `quick-ssh ls --names`. `alias_name = "qs"` in the config changes the name if `qs` clashes with something.
+Each script defines `qs` (wrapping `qissh` for `connect_mode = "shell"`) and **tab completion of host aliases** for `qs`, using `qissh ls --names`. `alias_name = "qs"` in the config changes the name if `qs` clashes with something.
 
 | Command | Does |
 |---|---|
@@ -125,7 +125,7 @@ Each script defines `qs` (wrapping `quick-ssh` for `connect_mode = "shell"`) and
 | `qs add <alias> <user@host[:port]> [-i key] [-J jump]` | add a host from the command line, through the same safe writer |
 | `qs init <shell>` | shell integration |
 
-The dotfiles' `shared/gup/gup.json` gets a `quick-ssh` entry beside folgit, and the shell blocks that set up folgit's integration add quick-ssh's.
+The dotfiles' `shared/gup/gup.json` gets a `qissh` entry beside folgit, and the shell blocks that set up folgit's integration add QiSSH's.
 
 ## 7. Tabs
 
@@ -179,7 +179,7 @@ Toggles and values, saved to `config.toml` as they change (as in folgit, this dr
 
 ## 8. Config
 
-`config.toml` in the OS config folder (`%AppData%\quick-ssh`, `~/Library/Application Support/quick-ssh`, `~/.config/quick-ssh`), versioned like folgit's. On first run every tool found on PATH is turned on.
+`config.toml` in the OS config folder (`%AppData%\qissh`, `~/Library/Application Support/qissh`, `~/.config/qissh`), versioned like folgit's. On first run every tool found on PATH is turned on.
 
 ```toml
 version = 1
@@ -195,7 +195,7 @@ hidden = []
 powerline = false
 
 # Things ssh config has no place for, keyed by alias. Renaming a host in
-# quick-ssh renames its entry here too.
+# qissh renames its entry here too.
 [hosts.oak]
 tags = ["home", "pi"]
 notes = "RAID 5, 4 × 8 TB; on the UPS"
@@ -229,14 +229,14 @@ enabled = false
 
 Tool placeholders: `{alias}`, `{hostname}`, `{user}`, `{port}`, `{home}` (`/home/<user>`, or `/root`).
 
-**Decision: metadata lives in `config.toml`, not in comments in the SSH config.** It keeps `~/.ssh/config` clean and portable, and quick-ssh never has to parse its own comments back. The cost is that tags don't travel with the SSH config, which `qs ls --json` / a future export can cover.
+**Decision: metadata lives in `config.toml`, not in comments in the SSH config.** It keeps `~/.ssh/config` clean and portable, and QiSSH never has to parse its own comments back. The cost is that tags don't travel with the SSH config, which `qs ls --json` / a future export can cover.
 
 State that isn't config (connection history, last status, facts, backups) lives in the OS cache folder.
 
 ## 9. Package layout
 
 ```
-cmd/quick-ssh/      main: flags, subcommands, config, the program
+cmd/qissh/      main: flags, subcommands, config, the program
 internal/
   config/           TOML config, marks (from folgit)
   history/          connection history (frecency, last host); later also facts and config backups
@@ -256,7 +256,7 @@ internal/
 
 Ordered by how much I think they'd be used. The first three are cheap given the design above.
 
-1. **Port forwards / tunnels.** Saved per host (`[[hosts.devbox1.tunnels]] name = "postgres", spec = "L 5432:localhost:5432"`), started with `T` as a background `ssh -N` (`ExitOnForwardFailure=yes`), listed in the status bar while they run and stopped when quick-ssh quits (or kept, as a setting). A one-off "forward a port" form for ad-hoc ones.
+1. **Port forwards / tunnels.** Saved per host (`[[hosts.devbox1.tunnels]] name = "postgres", spec = "L 5432:localhost:5432"`), started with `T` as a background `ssh -N` (`ExitOnForwardFailure=yes`), listed in the status bar while they run and stopped when QiSSH quits (or kept, as a setting). A one-off "forward a port" form for ad-hoc ones.
 2. **Run on many hosts (`x`).** Type a command, run it on every selected host in parallel (`BatchMode`), and see the output grouped by host with exit codes, failures first. Saved **snippets** per host or tag (`sudo apt update && sudo apt upgrade -y`, `docker ps`, `df -h`).
 3. **Host-key-changed helper** (in §4) and **config doctor** (`!`), like dockgit's: duplicate aliases, hosts shadowed by an earlier wildcard, `IdentityFile`s that don't exist, keys without a passphrase, a world-writable config, a `ProxyJump` to an alias that doesn't exist, new hosts placed after `Host *`. Each finding has a one-line fix.
 4. **Wake-on-LAN** (`W`) for a down host with a `mac`, sent from this machine or relayed through another host on the same LAN.
@@ -295,7 +295,7 @@ Each ends with something usable, plus tests.
 ## 13. Risks and open points
 
 - **Lossless writing** is the riskiest part: a bug here damages a file people rely on. Mitigated by byte-identical round-trip tests, validation with `ssh -G` before replacing, backups, and refusing to write over a file that changed underneath.
-- **ssh's rules are subtle** (first match wins, `Match` evaluated at connect time, `Include` inside a `Host` block is conditional). Using `ssh -G` for effective values avoids reimplementing them; quick-ssh only needs its own parser to *edit*.
+- **ssh's rules are subtle** (first match wins, `Match` evaluated at connect time, `Include` inside a `Host` block is conditional). Using `ssh -G` for effective values avoids reimplementing them; QiSSH only needs its own parser to *edit*.
 - **`Match` blocks** (`Match exec`, `Match host`) can make the effective config depend on the network you're on; `ssh -G` evaluates them for *now*, which is shown as such.
 - **Windows OpenSSH** quirks: config ACL checks, no `ControlMaster`, no `ssh-copy-id`, agent as a service. All handled or hidden on Windows, with tests on a Windows CI runner.
 - **Background checks** must never hang on a prompt: TCP dials don't authenticate, and anything that runs `ssh` in the background uses `BatchMode=yes` and a `ConnectTimeout`.
@@ -305,20 +305,20 @@ Each ends with something usable, plus tests.
 Confirmed before building:
 
 1. `enter` connects immediately (it's what you'll do 90% of the time); folgit's action popup moves to `m`.
-2. After an in-place session ends, quick-ssh quits (`stay_open = false`), since `qs` is mainly a launcher.
+2. After an in-place session ends, QiSSH quits (`stay_open = false`), since `qs` is mainly a launcher.
 3. Tags, notes and other metadata live in `config.toml`, not in SSH config comments.
-4. The binary is `quick-ssh` and `qs` comes from the shell integration, so it's renameable and completes aliases.
+4. The binary is `qissh` and `qs` comes from the shell integration, so it's renameable and completes aliases.
 5. Tailscale is a first-class status source and the Discover tab is in v1 (M5), since most hosts in the current config are on the tailnet.
 
 Made while building:
 
 6. **No startup cache.** Measured: `ssh -G` takes about 35 ms per host and 10 hosts resolve in about 115 ms in parallel. The list draws at once from the file itself (each block's own `HostName` and `User`, dimmed) and fills in ssh's values as they arrive.
-7. **In-place sessions run after the TUI exits.** quick-ssh quits and `main` runs ssh with the terminal, so the session never shares the screen with a TUI that's about to redraw. Ctrl+C goes to the session. ssh's exit code becomes quick-ssh's. Only `stay_open` uses `tea.ExecProcess`.
+7. **In-place sessions run after the TUI exits.** QiSSH quits and `main` runs ssh with the terminal, so the session never shares the screen with a TUI that's about to redraw. Ctrl+C goes to the session. ssh's exit code becomes QiSSH's. Only `stay_open` uses `tea.ExecProcess`.
 8. **`qs <query>` passes unknown targets through.** A query that matches no alias but looks like a target (`me@1.2.3.4`, `box.lan`) runs `ssh` with it, so `qs` can replace `ssh` for ad-hoc hosts. It's recorded in the history, so `qs -` repeats it.
 9. **Where each value comes from** is worked out by walking the blocks in ssh's reading order with ssh's own pattern rules (case-insensitive `*`/`?`, `!` negation, first match wins). `Match` blocks other than `Match all` are skipped, since only ssh can evaluate them; `ssh -G` still gives the right value, only its source may then read "default".
 10. **Rules are rows.** `Host *`, other pattern blocks and `Match` blocks sit under "Defaults & rules" at the bottom of the Hosts list rather than in a separate view; `enter` on one opens it in the editor.
 11. **The config is watched** (modification times, every 2 s), so edits made in another pane or with `E` show up without pressing `r`.
-12. **`ssh` is whatever is first on PATH**, as in your shell. Under Git Bash on Windows that's Git's OpenSSH; under PowerShell it's Windows' own. quick-ssh doesn't pick one.
+12. **`ssh` is whatever is first on PATH**, as in your shell. Under Git Bash on Windows that's Git's OpenSSH; under PowerShell it's Windows' own. QiSSH doesn't pick one.
 13. **Editing is pulled forward from M3.** `n` and `e` open one form (alias, HostName, User, Port, IdentityFile, ProxyJump); `e` replaces the planned duplicate-on-`c`, and delete lives in the edit form (with a y/n confirm, since every save is backed up) instead of on `D`. Options the form doesn't manage are left in the block untouched.
 14. **New lines follow the file's style.** Keyword case (lowercase or `HostName`) comes from the block being edited, or from the whole file for a new block; indent from the block's first option; line endings from the file.
 15. **Tailscale and the TCP check combine.** A tailnet machine that's offline shows Tailscale's "off 3d"; one that's online is still dialled, since being on the tailnet doesn't mean sshd is listening. Peers match by MagicDNS name, short name or Tailscale IP, never by Tailscale's HostName (phones report "localhost").
@@ -335,5 +335,6 @@ Made while building:
 26. **`←`/`→` switch tabs** everywhere a text field isn't focused (the forms keep them for the cursor and the key type).
 27. **Run on many uses BatchMode with no terminal**, like the login check, so a host that wants a password fails instead of hanging the batch. Commands run on every host at once with a two-minute limit; output is grouped by host, failures first. Snippets are a flat list in `config.toml` (`[[snippets]]`), saved from the prompt with `ctrl+s`, rather than per host or tag.
 28. **Facts come from one ssh command**: an `sh -c` script (no single quotes inside, like the key installer) that reads `/proc`, `os-release`, `df` and the package manager's local state (`apt-get -s`, `dnf --cacheonly`, `pacman -Qu`), so it needs no root and no network; Windows hosts (by Tailscale's OS or earlier facts) get PowerShell as `-EncodedCommand`. Facts are cached in `facts.json` with their time and fetched only on `i`, never in the background. Facts also tell the key copier a host runs Windows.
-29. **Tunnels are background `ssh -N`** with BatchMode, `ExitOnForwardFailure` and keepalives, started without a terminal. Saved ones live in the host's metadata (`[[hosts.<alias>.tunnels]]`, kept when the host form is saved or renamed). Shorthand like `5432` and `8080:80` expands to `-L` forwards to `localhost` on the host. A tunnel that ends on its own shows ssh's last line as an error; all are stopped when quick-ssh exits, including before an in-place session.
+29. **Tunnels are background `ssh -N`** with BatchMode, `ExitOnForwardFailure` and keepalives, started without a terminal. Saved ones live in the host's metadata (`[[hosts.<alias>.tunnels]]`, kept when the host form is saved or renamed). Shorthand like `5432` and `8080:80` expands to `-L` forwards to `localhost` on the host. A tunnel that ends on its own shows ssh's last line as an error; all are stopped when QiSSH exits, including before an in-place session.
 30. **The doctor runs on every config or key reload** (it only stats files), and the status bar shows how many warnings and problems there are. An option counts as ignored when ssh's first-match rule takes it from an earlier block (`IdentityFile`, forwards and other options ssh collects from every block are exempt). Permission checks run only off Windows, where ssh enforces them. `qs doctor` prints the same and exits 1 when something needs fixing.
+31. **Renamed from quick-ssh to qissh** (qi as in chi). "quick-ssh" was generic and taken (an iOS app, and `quicssh` sounds the same). The binary, module and folders are `qissh`, prose says QiSSH, and `qs` is unchanged. On start the old `quick-ssh` config and cache folders are renamed, unless a `qissh` one already exists.

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bferg314/quick-ssh/internal/config"
+	"github.com/bferg314/qissh/internal/config"
 )
 
 func TestExpand(t *testing.T) {

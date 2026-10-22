@@ -1,4 +1,4 @@
-// Package status combines what quick-ssh knows about a host (ssh's
+// Package status combines what qissh knows about a host (ssh's
 // resolved config, Tailscale, a TCP check, a login check) into the one
 // state shown for it, so the dashboard and `qs check` agree.
 package status
@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bferg314/quick-ssh/internal/probe"
-	"github.com/bferg314/quick-ssh/internal/resolve"
-	"github.com/bferg314/quick-ssh/internal/tailscale"
+	"github.com/bferg314/qissh/internal/probe"
+	"github.com/bferg314/qissh/internal/resolve"
+	"github.com/bferg314/qissh/internal/tailscale"
 )
 
 // Kind is how a host is doing, best first, for sorting.
@@ -39,7 +39,7 @@ type Input struct {
 	Reach *probe.Reach    // nil before the first check
 	Login *probe.Login    // nil before a login check
 	// Jump is the state of the first ProxyJump hop, when the host has one
-	// and it's a host quick-ssh knows.
+	// and it's a host qissh knows.
 	Jump *State
 }
 

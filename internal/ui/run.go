@@ -11,7 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/bferg314/quick-ssh/internal/remote"
+	"github.com/bferg314/qissh/internal/remote"
 )
 
 // runTimeout is how long a command may take on each host.

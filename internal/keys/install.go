@@ -15,16 +15,16 @@ import (
 // single quotes or backslashes so it survives being quoted for any shell.
 const unixScript = `umask 077; d="$HOME/.ssh"; f="$d/authorized_keys"; ` +
 	`mkdir -p "$d" && touch "$f" || exit 1; ` +
-	`if grep -qF "$2" "$f"; then echo "quick-ssh: the key is already in $f on $(uname -n)"; exit 0; fi; ` +
+	`if grep -qF "$2" "$f"; then echo "qissh: the key is already in $f on $(uname -n)"; exit 0; fi; ` +
 	`if [ -s "$f" ] && [ -n "$(tail -c1 "$f")" ]; then echo >> "$f"; fi; ` +
 	`echo "$1" >> "$f" || exit 1; ` +
 	`command -v restorecon >/dev/null 2>&1 && restorecon -F "$d" "$f" >/dev/null 2>&1; ` +
-	`echo "quick-ssh: added the key to $f on $(uname -n)"`
+	`echo "qissh: added the key to $f on $(uname -n)"`
 
 // UnixCommand is the remote command that installs public key line pub on
 // a Linux, macOS or BSD host.
 func UnixCommand(pub string) string {
-	return "sh -c " + shQuote(unixScript) + " quick-ssh " + shQuote(pub) + " " + shQuote(blobOf(pub))
+	return "sh -c " + shQuote(unixScript) + " qissh " + shQuote(pub) + " " + shQuote(blobOf(pub))
 }
 
 // WindowsScript is the PowerShell that installs pub on a Windows host
@@ -52,7 +52,7 @@ if ($admin) {
 `)
 	}
 	b.WriteString(`if ((Test-Path $f) -and (Select-String -Path $f -SimpleMatch -Quiet -Pattern $b)) {
-  "quick-ssh: the key is already in $f on $env:COMPUTERNAME"
+  "qissh: the key is already in $f on $env:COMPUTERNAME"
   exit 0
 }
 $nl = ''
@@ -62,7 +62,7 @@ if ((Test-Path $f) -and (Get-Item $f).Length -gt 0) {
 }
 [IO.File]::AppendAllText($f, $nl + $k + "` + "`r`n" + `", (New-Object Text.UTF8Encoding $false))
 if ($admin) { icacls.exe $f /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null }
-"quick-ssh: added the key to $f on $env:COMPUTERNAME"
+"qissh: added the key to $f on $env:COMPUTERNAME"
 `)
 	return b.String()
 }

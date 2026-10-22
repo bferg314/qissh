@@ -1,7 +1,7 @@
-// Package shell produces the wrapper function that `quick-ssh init <shell>`
+// Package shell produces the wrapper function that `qissh init <shell>`
 // prints. It defines qs (or the configured name), completes host aliases,
-// and, for connect_mode = "shell", runs the ssh command quick-ssh chose in
-// the calling shell: quick-ssh writes it to --cmd-file, one argument per
+// and, for connect_mode = "shell", runs the ssh command qissh chose in
+// the calling shell: qissh writes it to --cmd-file, one argument per
 // line, and the wrapper runs it and adds it to the shell's history.
 package shell
 
@@ -40,22 +40,22 @@ func Script(shell, name string) (string, error) {
 func Install(shell string) string {
 	switch strings.ToLower(shell) {
 	case "bash":
-		return `eval "$(quick-ssh init bash)"    # add to ~/.bashrc`
+		return `eval "$(qissh init bash)"    # add to ~/.bashrc`
 	case "zsh":
-		return `eval "$(quick-ssh init zsh)"     # add to ~/.zshrc`
+		return `eval "$(qissh init zsh)"     # add to ~/.zshrc`
 	case "fish":
-		return `quick-ssh init fish | source     # add to ~/.config/fish/config.fish`
+		return `qissh init fish | source     # add to ~/.config/fish/config.fish`
 	case "powershell", "pwsh":
-		return `Invoke-Expression (& quick-ssh init powershell | Out-String)    # add to $PROFILE`
+		return `Invoke-Expression (& qissh init powershell | Out-String)    # add to $PROFILE`
 	}
 	return ""
 }
 
-const bash = `# quick-ssh shell integration: QSNAME opens quick-ssh, QSNAME <host> connects.
+const bash = `# qissh shell integration: QSNAME opens qissh, QSNAME <host> connects.
 QSNAME() {
     local tmp rc
-    tmp="$(mktemp -t quick-ssh-cmd.XXXXXX)" || return
-    command quick-ssh --cmd-file="$tmp" "$@"
+    tmp="$(mktemp -t qissh-cmd.XXXXXX)" || return
+    command qissh --cmd-file="$tmp" "$@"
     rc=$?
     if [ -s "$tmp" ]; then
         local args=()
@@ -71,17 +71,17 @@ QSNAME() {
 _QSNAME_complete() {
     if [ "$COMP_CWORD" -eq 1 ]; then
         local IFS=$'\n'
-        COMPREPLY=($(compgen -W "$(command quick-ssh ls --names 2>/dev/null)" -- "${COMP_WORDS[COMP_CWORD]}"))
+        COMPREPLY=($(compgen -W "$(command qissh ls --names 2>/dev/null)" -- "${COMP_WORDS[COMP_CWORD]}"))
     fi
 }
 complete -F _QSNAME_complete QSNAME
 `
 
-const zsh = `# quick-ssh shell integration: QSNAME opens quick-ssh, QSNAME <host> connects.
+const zsh = `# qissh shell integration: QSNAME opens qissh, QSNAME <host> connects.
 QSNAME() {
     local tmp rc
-    tmp="$(mktemp -t quick-ssh-cmd.XXXXXX)" || return
-    command quick-ssh --cmd-file="$tmp" "$@"
+    tmp="$(mktemp -t qissh-cmd.XXXXXX)" || return
+    command qissh --cmd-file="$tmp" "$@"
     rc=$?
     if [[ -s $tmp ]]; then
         local -a args
@@ -94,14 +94,14 @@ QSNAME() {
     rm -f -- "$tmp"
     return $rc
 }
-_QSNAME() { (( CURRENT == 2 )) && compadd -- ${(f)"$(command quick-ssh ls --names 2>/dev/null)"} }
+_QSNAME() { (( CURRENT == 2 )) && compadd -- ${(f)"$(command qissh ls --names 2>/dev/null)"} }
 (( $+functions[compdef] )) && compdef _QSNAME QSNAME
 `
 
-const fish = `# quick-ssh shell integration: QSNAME opens quick-ssh, QSNAME <host> connects.
+const fish = `# qissh shell integration: QSNAME opens qissh, QSNAME <host> connects.
 function QSNAME
-    set -l tmp (mktemp -t quick-ssh-cmd.XXXXXX); or return
-    command quick-ssh --cmd-file=$tmp $argv
+    set -l tmp (mktemp -t qissh-cmd.XXXXXX); or return
+    command qissh --cmd-file=$tmp $argv
     set -l st $status
     set -l args (cat -- $tmp 2>/dev/null)
     rm -f -- $tmp
@@ -111,13 +111,13 @@ function QSNAME
     end
     return $st
 end
-complete -c QSNAME -f -n __fish_is_first_arg -a '(command quick-ssh ls --names 2>/dev/null)'
+complete -c QSNAME -f -n __fish_is_first_arg -a '(command qissh ls --names 2>/dev/null)'
 `
 
-const powershell = `# quick-ssh shell integration: QSNAME opens quick-ssh, QSNAME <host> connects.
+const powershell = `# qissh shell integration: QSNAME opens qissh, QSNAME <host> connects.
 function QSNAME {
     param([string]$Query)
-    $exe = Get-Command quick-ssh -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    $exe = Get-Command qissh -CommandType Application -ErrorAction Stop | Select-Object -First 1
     $all = @()
     if ($PSBoundParameters.ContainsKey('Query')) { $all += $Query }
     $all += $args
@@ -140,7 +140,7 @@ function QSNAME {
 }
 Register-ArgumentCompleter -CommandName QSNAME -ParameterName Query -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete)
-    & quick-ssh ls --names 2>$null | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+    & qissh ls --names 2>$null | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
         [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
     }
 }

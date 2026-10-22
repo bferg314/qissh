@@ -14,10 +14,10 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/discover"
-	"github.com/bferg314/quick-ssh/internal/launcher"
-	"github.com/bferg314/quick-ssh/internal/sshconfig"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/discover"
+	"github.com/bferg314/qissh/internal/launcher"
+	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
 // openURL opens a web page; tests replace it.

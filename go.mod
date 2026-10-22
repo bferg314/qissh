@@ -1,4 +1,4 @@
-module github.com/bferg314/quick-ssh
+module github.com/bferg314/qissh
 
 go 1.26.0
 

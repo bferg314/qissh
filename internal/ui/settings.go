@@ -7,8 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/bferg314/quick-ssh/internal/config"
-	"github.com/bferg314/quick-ssh/internal/launcher"
+	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/launcher"
 )
 
 type settingsTab struct {
@@ -63,7 +63,7 @@ func (a *App) settingItems() []settingItem {
 	if a.cmdFile != "" {
 		shellInt.detail = a.cfg.AliasName + " is set up in this shell"
 	} else {
-		shellInt.detail = "run quick-ssh init <shell> for " + a.cfg.AliasName + " and host completion (see README)"
+		shellInt.detail = "run qissh init <shell> for " + a.cfg.AliasName + " and host completion (see README)"
 		shellInt.warn = "not set up"
 	}
 
@@ -189,5 +189,5 @@ func intervalText(s string) string {
 	if s == "0" {
 		return "only at start and on r"
 	}
-	return "every " + s + " while quick-ssh is open"
+	return "every " + s + " while qissh is open"
 }
