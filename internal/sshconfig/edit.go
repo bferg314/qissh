@@ -2,6 +2,7 @@ package sshconfig
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -47,6 +48,94 @@ func FieldsOf(h *Host) HostFields {
 		IdentityFile: h.Value("identityfile"),
 		ProxyJump:    h.Value("proxyjump"),
 	}
+}
+
+// Field names one of HostFields' fields.
+type Field int
+
+const (
+	FieldAlias Field = iota
+	FieldHostName
+	FieldUser
+	FieldPort
+	FieldIdentityFile
+	FieldProxyJump
+)
+
+// FieldError is what's wrong with one field.
+type FieldError struct {
+	Field Field
+	Msg   string
+}
+
+func (e *FieldError) Error() string { return e.Msg }
+
+// Check finds the first field qissh wouldn't write: an alias that's empty,
+// has spaces or quotes, or is a pattern; spaces in a value; a port that
+// isn't 1 to 65535. Whether the alias is already taken is the caller's to
+// check.
+func (h HostFields) Check() *FieldError {
+	bad := func(f Field, msg string) *FieldError { return &FieldError{f, msg} }
+	switch {
+	case h.Alias == "":
+		return bad(FieldAlias, "Give the host an alias")
+	case strings.ContainsAny(h.Alias, " \t\"'#"):
+		return bad(FieldAlias, "An alias can't contain spaces, quotes or #")
+	case IsPattern(h.Alias):
+		return bad(FieldAlias, "An alias can't contain * ? or start with ! (those make a pattern)")
+	case strings.ContainsAny(h.HostName, " \t"):
+		return bad(FieldHostName, "A hostname can't contain spaces")
+	case strings.ContainsAny(h.User, " \t"):
+		return bad(FieldUser, "A user name can't contain spaces")
+	case strings.ContainsAny(h.ProxyJump, " \t"):
+		return bad(FieldProxyJump, "ProxyJump is a host alias or user@host:port, without spaces")
+	}
+	if h.Port != "" {
+		if n, err := strconv.Atoi(h.Port); err != nil || n < 1 || n > 65535 {
+			return bad(FieldPort, "Port is a number from 1 to 65535")
+		}
+	}
+	return nil
+}
+
+// ParseTarget splits user@host:port, where the user and port are
+// optional. An IPv6 address takes a port only in brackets ([::1]:2222);
+// without them every colon belongs to the address.
+func ParseTarget(s string) (user, host, port string, err error) {
+	host = s
+	if i := strings.LastIndex(s, "@"); i >= 0 {
+		user, host = s[:i], s[i+1:]
+		if user == "" {
+			return "", "", "", fmt.Errorf("%q: nothing before the @", s)
+		}
+	}
+	switch {
+	case strings.HasPrefix(host, "["):
+		end := strings.Index(host, "]")
+		if end < 0 {
+			return "", "", "", fmt.Errorf("%q: no ] after the address", s)
+		}
+		rest := host[end+1:]
+		host = host[1:end]
+		if rest != "" {
+			if !strings.HasPrefix(rest, ":") {
+				return "", "", "", fmt.Errorf("%q: expected :port after ]", s)
+			}
+			port = rest[1:]
+			if port == "" {
+				return "", "", "", fmt.Errorf("%q: no port after the :", s)
+			}
+		}
+	case strings.Count(host, ":") == 1:
+		host, port, _ = strings.Cut(host, ":")
+		if port == "" {
+			return "", "", "", fmt.Errorf("%q: no port after the :", s)
+		}
+	}
+	if host == "" {
+		return "", "", "", fmt.Errorf("%q: no host name", s)
+	}
+	return user, host, port, nil
 }
 
 // SetHost makes the block (an index into f.Blocks, a Host block naming

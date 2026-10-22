@@ -211,6 +211,17 @@ func canonical(p string) string {
 	return p
 }
 
+// MainFile is a copy of the main config to add hosts to, or an empty file
+// when there's no config yet.
+func (c *Config) MainFile() *File {
+	for _, f := range c.Files {
+		if f.Path == c.Path {
+			return f.Copy()
+		}
+	}
+	return Parse(c.Path, nil)
+}
+
 // Find returns the host with alias, ignoring case as ssh does.
 func (c *Config) Find(alias string) *Host {
 	for _, h := range c.Hosts {

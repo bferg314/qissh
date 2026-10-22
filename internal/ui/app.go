@@ -196,7 +196,7 @@ func New(o Options) *App {
 	}
 	a.facts = remote.LoadCache(factsPath)
 	if a.backupDir == "" {
-		a.backupDir = backupDir()
+		a.backupDir = config.BackupDir()
 	}
 	a.keyDir = o.KeyDir
 	if a.keyDir == "" {

@@ -8,7 +8,7 @@ qs oak            # connect straight away (exact or unique fuzzy match), else op
 qs -              # reconnect to the last host
 ```
 
-This is the plan QiSSH is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0, M1, M2, M4, M5 and M6 done; M3's new, edit and delete done early (`qs add` still to come).**
+This is the plan QiSSH is being built from, kept up to date with what's built and the decisions made along the way (see [Decisions](#decisions)). [README.md](README.md) describes how to use it. **Status: M0 to M6 done; M7 next.**
 
 ## 1. Goals and non-goals
 
@@ -338,3 +338,4 @@ Made while building:
 29. **Tunnels are background `ssh -N`** with BatchMode, `ExitOnForwardFailure` and keepalives, started without a terminal. Saved ones live in the host's metadata (`[[hosts.<alias>.tunnels]]`, kept when the host form is saved or renamed). Shorthand like `5432` and `8080:80` expands to `-L` forwards to `localhost` on the host. A tunnel that ends on its own shows ssh's last line as an error; all are stopped when QiSSH exits, including before an in-place session.
 30. **The doctor runs on every config or key reload** (it only stats files), and the status bar shows how many warnings and problems there are. An option counts as ignored when ssh's first-match rule takes it from an earlier block (`IdentityFile`, forwards and other options ssh collects from every block are exempt). Permission checks run only off Windows, where ssh enforces them. `qs doctor` prints the same and exits 1 when something needs fixing.
 31. **Renamed from quick-ssh to qissh** (qi as in chi). "quick-ssh" was generic and taken (an iOS app, and `quicssh` sounds the same). The binary, module and folders are `qissh`, prose says QiSSH, and `qs` is unchanged. On start the old `quick-ssh` config and cache folders are renamed, unless a `qissh` one already exists.
+32. **`qs add` shares the form's code path.** The field checks (`HostFields.Check`), the `ssh -F <file> -G` validator and the main-file lookup moved out of the UI so `qs add` and `n` reject the same things and write the same block in the same place. Flags may come before, between or after the alias and target. A bare IPv6 address takes no port; `[addr]:port` does. There's no `--tag` yet: tags are added in the dashboard.

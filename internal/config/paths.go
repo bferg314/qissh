@@ -31,6 +31,16 @@ func ExpandPath(p string) string {
 	return filepath.Clean(p)
 }
 
+// BackupDir is where backups of the ssh config are kept: backups in
+// qissh's cache folder, or "" when there's no cache folder.
+func BackupDir() string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "qissh", "backups")
+}
+
 // TildePath shortens the home directory at the start of p to ~.
 func TildePath(p string) string {
 	home, err := os.UserHomeDir()

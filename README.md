@@ -11,6 +11,8 @@ qs -              # reconnect to the last host
 qs ls             # list hosts (--json, --names)
 qs check          # which hosts are up (--login also tries logging in)
 qs doctor         # mistakes in your ssh config
+qs add box me@box.lan:2222 -i ~/.ssh/id_box -J elm
+                  # add a host without opening the dashboard
 ```
 
 QiSSH runs your own `ssh`, so the session is exactly what `ssh <alias>` gives you: agents, `ProxyJump`, `ControlMaster` and everything else in your config keep working. Your ssh config stays the source of truth.
@@ -62,6 +64,8 @@ Every host in your ssh config, including files pulled in with `Include`, with wh
 Edits change as little as possible. A changed value rewrites only its own line, in the style it was written: `hostname` stays lowercase, `user=alice` keeps its `=`, and trailing comments stay. A new option goes at the end of the host's block with the block's indent. Other options in the block, comments, blank lines and the rest of the file are untouched. New hosts go before the first `Host *` (or other pattern) or `Match` block, because ssh uses the first value it finds and a host after `Host *` would lose to its defaults. Deleting a host removes its block and the comment lines directly above it. If the block also names other hosts (`Host oak oak2`), only that name is removed.
 
 Every save is checked first. QiSSH writes the new file next to the old one and asks `ssh -F <new file> -G` to read it. If ssh rejects it, nothing is written and you see ssh's message. It then backs up the old file, to `backups` in QiSSH's cache folder (the last 10 are kept) and to `config.qs-bak` beside it, swaps the new file in and checks it once more. If the file changed on disk while you were editing, the save is refused rather than overwriting that change.
+
+`qs add <alias> <user@host[:port]> [-i key] [-J jump]` adds a host from the shell the same way, with the same checks, placement and backups as `n`. Write an IPv6 address with a port in brackets: `root@[fe80::1]:2222`.
 
 ### Is it up?
 
@@ -227,4 +231,4 @@ go test ./...
 
 ## Status
 
-QiSSH is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts (the core of M3, pulled forward), keys, copying them to hosts, and tags and notes (M4), the Discover tab (M5), and tunnels, running commands on many hosts, facts and the config doctor (M6). Next: polish and releases (M7).
+QiSSH is being built in milestones; see [PLAN.md](PLAN.md). Done so far: reading the config (M1), which hosts are up, the login check and host key fixes (M2), adding, editing and deleting hosts, from the dashboard or with `qs add` (M3), keys, copying them to hosts, and tags and notes (M4), the Discover tab (M5), and tunnels, running commands on many hosts, facts and the config doctor (M6). Next: polish and releases (M7).

@@ -5,6 +5,7 @@ package resolve
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -94,6 +95,26 @@ func (o Options) ArgsWith(extra []string, alias string) []string {
 		args = append(args, "--") // so the alias isn't read as an option
 	}
 	return append(args, alias)
+}
+
+// Validator checks a config file before qissh puts it in place, by asking
+// `ssh -F <file> -G <probe>` to read it. ssh's complaint comes back
+// starting at "line N:", without the temp file's name.
+func Validator(r run.Runner, o Options, probe string) func(path string) error {
+	return func(path string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, err := r.Output(ctx, o.Program(), "-F", path, "-G", probe)
+		if err != nil {
+			// "C:\...\.config.qs-123: line 9: Bad configuration option: x" → "line 9: ..."
+			msg := err.Error()
+			if i := strings.Index(msg, ": line "); i >= 0 {
+				msg = msg[i+2:]
+			}
+			return errors.New(msg)
+		}
+		return nil
+	}
 }
 
 // One resolves a single host.

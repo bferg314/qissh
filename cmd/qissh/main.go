@@ -51,6 +51,8 @@ func main() {
   qissh check [--login] [host...]
                               which hosts are up (exit status 1 if any are down)
   qissh doctor            mistakes in your ssh config (exit status 1 if any need fixing)
+  qissh add <alias> <user@host[:port]> [-i key] [-J jump]
+                              add a host to your ssh config
   qissh init <shell>      print shell integration (%s), which defines qs
 
 Flags:
@@ -75,6 +77,8 @@ Flags:
 		err = runDoctor()
 	case flag.Arg(0) == "check":
 		err = runCheck(flag.Args()[1:])
+	case flag.Arg(0) == "add":
+		err = runAdd(flag.Args()[1:])
 	case flag.NArg() > 1:
 		flag.Usage()
 		os.Exit(2)

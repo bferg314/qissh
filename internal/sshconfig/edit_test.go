@@ -213,3 +213,54 @@ func TestBackupsArePruned(t *testing.T) {
 		t.Fatalf("%d backups kept", len(entries))
 	}
 }
+
+func TestParseTarget(t *testing.T) {
+	cases := []struct{ in, user, host, port string }{
+		{"oak.lan", "", "oak.lan", ""},
+		{"me@oak.lan", "me", "oak.lan", ""},
+		{"me@oak.lan:2222", "me", "oak.lan", "2222"},
+		{"10.0.0.5:22", "", "10.0.0.5", "22"},
+		{"fe80::1", "", "fe80::1", ""},
+		{"root@[fe80::1]:2222", "root", "fe80::1", "2222"},
+		{"[::1]", "", "::1", ""},
+		{"a@b@c", "a@b", "c", ""},
+	}
+	for _, c := range cases {
+		user, host, port, err := ParseTarget(c.in)
+		if err != nil || user != c.user || host != c.host || port != c.port {
+			t.Errorf("%q: got %q %q %q %v", c.in, user, host, port, err)
+		}
+	}
+	for _, bad := range []string{"", "@h", "me@", "h:", "[::1", "[::1]x", "[::1]:", "me@:22"} {
+		if _, _, _, err := ParseTarget(bad); err == nil {
+			t.Errorf("%q: want an error", bad)
+		}
+	}
+}
+
+func TestCheckFields(t *testing.T) {
+	cases := []struct {
+		f     HostFields
+		field Field
+		want  string
+	}{
+		{HostFields{}, FieldAlias, "Give the host an alias"},
+		{HostFields{Alias: "my box"}, FieldAlias, "spaces"},
+		{HostFields{Alias: "web*"}, FieldAlias, "pattern"},
+		{HostFields{Alias: "!x"}, FieldAlias, "pattern"},
+		{HostFields{Alias: "a", HostName: "h h"}, FieldHostName, "hostname"},
+		{HostFields{Alias: "a", User: "u u"}, FieldUser, "user"},
+		{HostFields{Alias: "a", Port: "0"}, FieldPort, "Port"},
+		{HostFields{Alias: "a", Port: "x"}, FieldPort, "Port"},
+		{HostFields{Alias: "a", ProxyJump: "a b"}, FieldProxyJump, "ProxyJump"},
+	}
+	for _, c := range cases {
+		e := c.f.Check()
+		if e == nil || e.Field != c.field || !strings.Contains(e.Msg, c.want) {
+			t.Errorf("%+v: got %+v", c.f, e)
+		}
+	}
+	if e := (HostFields{Alias: "a", HostName: "h", User: "u", Port: "65535", ProxyJump: "j"}).Check(); e != nil {
+		t.Errorf("good fields: %v", e)
+	}
+}

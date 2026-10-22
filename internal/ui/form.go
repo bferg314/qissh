@@ -1,22 +1,19 @@
 package ui
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/user"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/qissh/internal/config"
+	"github.com/bferg314/qissh/internal/resolve"
 	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
@@ -215,26 +212,16 @@ func (a *App) checkForm() bool {
 		f.setFocus(field)
 		return false
 	}
-	switch {
-	case v.Alias == "":
-		return bad(fAlias, "Give the host an alias")
-	case strings.ContainsAny(v.Alias, " \t\"'#"):
-		return bad(fAlias, "An alias can't contain spaces, quotes or #")
-	case sshconfig.IsPattern(v.Alias):
-		return bad(fAlias, "An alias can't contain * ? or start with ! (those make a pattern; use E to write one)")
-	case strings.ContainsAny(v.HostName, " \t"):
-		return bad(fHostName, "A hostname can't contain spaces")
-	case strings.ContainsAny(v.User, " \t"):
-		return bad(fUser, "A user name can't contain spaces")
-	case strings.ContainsAny(v.ProxyJump, " \t"):
-		return bad(fJump, "ProxyJump is a host alias or user@host:port, without spaces")
-	case strings.ContainsAny(strings.TrimSpace(f.inputs[fWeb].Value()), " \t"):
-		return bad(fWeb, "A web address can't contain spaces")
-	}
-	if v.Port != "" {
-		if n, err := strconv.Atoi(v.Port); err != nil || n < 1 || n > 65535 {
-			return bad(fPort, "Port is a number from 1 to 65535")
+	if e := v.Check(); e != nil {
+		msg := e.Msg
+		if e.Field == sshconfig.FieldAlias && sshconfig.IsPattern(v.Alias) {
+			msg = strings.TrimSuffix(msg, ")") + "; use E to write one)"
 		}
+		// The form's first fields are HostFields', in the same order.
+		return bad(int(e.Field), msg)
+	}
+	if strings.ContainsAny(strings.TrimSpace(f.inputs[fWeb].Value()), " \t") {
+		return bad(fWeb, "A web address can't contain spaces")
 	}
 	if other := a.ssh.Find(v.Alias); other != nil && (f.host == nil || !strings.EqualFold(other.Alias, f.host.Alias)) {
 		return bad(fAlias, fmt.Sprintf("%s already exists (%s:%d)", other.Alias, config.TildePath(other.File.Path), other.LineNo()))
@@ -287,16 +274,7 @@ func (a *App) deleteHost() tea.Cmd {
 	return a.writeFile(file, savedMsg{alias: h.Alias, deleted: true}, "qissh-check")
 }
 
-// mainFile is a copy of the main config to add hosts to, or an empty file
-// when there's no config yet.
-func (a *App) mainFile() *sshconfig.File {
-	for _, f := range a.ssh.Files {
-		if f.Path == a.ssh.Path {
-			return f.Copy()
-		}
-	}
-	return sshconfig.Parse(a.ssh.Path, nil)
-}
+func (a *App) mainFile() *sshconfig.File { return a.ssh.MainFile() }
 
 // writeFile saves file in the background, checking it with
 // `ssh -F <file> -G <probe>` first.
@@ -304,21 +282,7 @@ func (a *App) writeFile(file *sshconfig.File, done savedMsg, probe string) tea.C
 	if a.form != nil {
 		a.form.saving = true
 	}
-	runner, opts := a.runner, a.sshOptions()
-	validate := func(path string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_, err := runner.Output(ctx, opts.Program(), "-F", path, "-G", probe)
-		if err != nil {
-			// "C:\...\.config.qs-123: line 9: Bad configuration option: x" → "line 9: ..."
-			msg := err.Error()
-			if i := strings.Index(msg, ": line "); i >= 0 {
-				msg = msg[i+2:]
-			}
-			return errors.New(msg)
-		}
-		return nil
-	}
+	validate := resolve.Validator(a.runner, a.sshOptions(), probe)
 	backups := a.backupDir
 	return tea.Batch(a.startSpinner(), func() tea.Msg {
 		done.backup, done.err = sshconfig.Save(file, validate, backups)
@@ -479,14 +443,4 @@ func (t *hostsTab) focus(alias string) {
 			return
 		}
 	}
-}
-
-// backupDir is where config backups are kept: backups in qissh's cache
-// folder.
-func backupDir() string {
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(dir, "qissh", "backups")
 }
