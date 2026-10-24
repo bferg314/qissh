@@ -51,10 +51,15 @@ type Disk struct {
 // maxDisks is how many drives are kept; the rest of a long list is dropped.
 const maxDisks = 16
 
-// unixFacts prints key=value lines. It reads only what's available
-// without root and without the network (apt-get -s, dnf --cacheonly,
-// pacman -Qu). It contains no single quotes, so it can be passed as
-// sh -c '...' through any login shell.
+// unixFacts prints key=value lines. On macOS, drives that are disk images
+// (simulator runtimes, mounted .dmg files: hdiutil info) are left out,
+// and APFS volumes that share a container, so have the same size and
+// free space, count once as size less free space: the sealed / volume's
+// own Used is a few GiB however full the disk is.
+//
+// It reads only what's available without root and without the network
+// (apt-get -s, dnf --cacheonly, pacman -Qu). It contains no single
+// quotes, so it can be passed as sh -c '...' through any login shell.
 const unixFacts = `echo "kernel=$(uname -s) $(uname -r)"
 echo "arch=$(uname -m)"
 echo "hostname=$(hostname 2>/dev/null || uname -n)"
@@ -62,17 +67,22 @@ if [ -r /etc/os-release ]; then . /etc/os-release; echo "os=$PRETTY_NAME"
 elif command -v sw_vers >/dev/null 2>&1; then echo "os=$(sw_vers -productName) $(sw_vers -productVersion)"; fi
 if command -v nproc >/dev/null 2>&1; then echo "cpus=$(nproc)"; else echo "cpus=$(sysctl -n hw.ncpu 2>/dev/null)"; fi
 if [ -r /proc/uptime ]; then read u _ < /proc/uptime; echo "uptime=${u%.*}"
-else b=$(sysctl -n kern.boottime 2>/dev/null | sed -n "s/.*sec = \([0-9]*\).*/\1/p"); [ -n "$b" ] && echo "uptime=$(( $(date +%s) - b ))"; fi
+else b=$(sysctl -n kern.boottime 2>/dev/null | sed -n "s/^{ sec = \([0-9]*\).*/\1/p"); [ -n "$b" ] && echo "uptime=$(( $(date +%s) - b ))"; fi
 if [ -r /proc/loadavg ]; then read l1 l5 l15 _ < /proc/loadavg; echo "load=$l1 $l5 $l15"
-else echo "load=$(sysctl -n vm.loadavg 2>/dev/null | tr -d "{}" | awk "{print \$1, \$2, \$3}")"; fi
+else set -- $(sysctl -n vm.loadavg 2>/dev/null | tr -d "{}"); [ $# -ge 3 ] && echo "load=$1 $2 $3"; fi
 [ -r /proc/meminfo ] && awk "/^MemTotal:/{t=\$2} /^MemAvailable:/{a=\$2} END{print \"mem=\" t-a \" \" t}" /proc/meminfo
-df -Pk / 2>/dev/null | awk "NR==2{print \"disk=\" \$3 \" \" \$2}"
+mac=; [ "$(uname -s)" = Darwin ] && mac=1
+if [ -n "$mac" ]; then df -Pk / 2>/dev/null | awk "NR==2{print \"disk=\" \$2-\$4 \" \" \$2}"
+else df -Pk / 2>/dev/null | awk "NR==2{print \"disk=\" \$3 \" \" \$2}"; fi
+imgs=" "; command -v hdiutil >/dev/null 2>&1 && imgs=" $(hdiutil info 2>/dev/null | sed -n "s|^\(/dev/disk[^[:space:]]*\).*|\1|p" | tr "\n" " ")"
 { df -Pkl 2>/dev/null || df -Pk 2>/dev/null; } | tail -n +2 | { seen=" "; while read fs size used avail cap mnt; do
 case "$size" in ""|0|*[!0-9]*) continue;; esac
 case "$fs" in tmpfs|devtmpfs|udev|none|overlay|shm|efivarfs|squashfs|devfs|/dev/loop*) continue;; esac
-case "$mnt" in /System/Volumes/Data) ;; /boot|/boot/*|/System/Volumes/*|/private/var/vm|/snap/*|/var/lib/docker/*) continue;; esac
-case "$seen" in *" $fs "*) continue;; esac
-seen="$seen$fs "; echo "drive=$used $size $mnt"; done; }
+case "$imgs" in *" $fs "*) continue;; esac
+case "$mnt" in /boot|/boot/*|/System/Volumes/*|/private/var/vm|/snap/*|/var/lib/docker/*) continue;; esac
+key=$fs; [ -n "$mac" ] && { key=$size:$avail; used=$((size - avail)); }
+case "$seen" in *" $key "*) continue;; esac
+seen="$seen$key "; echo "drive=$used $size $mnt"; done; }
 if command -v apt-get >/dev/null 2>&1; then echo "updates=$(apt-get -s -o Debug::NoLocking=1 upgrade 2>/dev/null | grep -c ^Inst)"
 elif command -v dnf >/dev/null 2>&1; then echo "updates=$(dnf -q --cacheonly check-update 2>/dev/null | grep -c "^[A-Za-z0-9]")"
 elif command -v pacman >/dev/null 2>&1; then echo "updates=$(pacman -Qu 2>/dev/null | wc -l)"; fi
