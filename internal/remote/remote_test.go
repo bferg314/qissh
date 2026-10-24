@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -73,23 +72,21 @@ func TestParseFactsDrives(t *testing.T) {
 	}
 }
 
-// factsWith runs the Unix script with fake commands, by name, ahead of
-// the real ones on PATH.
+// factsWith runs the Unix script with fake commands, by name. They're
+// shell functions, which win over anything on PATH: Git for Windows' sh
+// puts its own /usr/bin first.
 func factsWith(t *testing.T, fakes map[string]string) Facts {
 	t.Helper()
 	sh, err := exec.LookPath("sh")
 	if err != nil {
 		t.Skip("no sh")
 	}
-	dir := t.TempDir()
-	for name, script := range fakes {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script), 0o755); err != nil {
-			t.Fatal(err)
-		}
+	var script strings.Builder
+	for name, body := range fakes {
+		fmt.Fprintf(&script, "%s() {\n%s\n}\n", name, body)
 	}
-	cmd := exec.Command(sh, "-c", unixFacts)
-	cmd.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	out, err := cmd.CombinedOutput()
+	script.WriteString(unixFacts)
+	out, err := exec.Command(sh, "-c", script.String()).CombinedOutput()
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
