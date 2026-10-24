@@ -181,7 +181,7 @@ func New(o Options) *App {
 		st:        newStyles(true),
 		hosts:     newHostsTab(),
 		disc:      newDiscoverTab(),
-		detail:    detailState{show: true},
+		detail:    detailState{},
 		resolved:  map[string]*resolve.Resolved{},
 		backupDir: o.BackupDir,
 		checks:    newChecks(),
@@ -569,7 +569,7 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		if a.detailLayout() == layoutFull {
-			a.detail.full = false
+			a.detail.mode = paneSide // back beside the list, or hidden on narrow terminals
 			return nil
 		}
 		if a.tab == tabDiscover && len(a.disc.selected) > 0 {

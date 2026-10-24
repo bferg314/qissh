@@ -3,9 +3,11 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/qissh/internal/config"
 	"github.com/bferg314/qissh/internal/remote"
@@ -53,8 +55,9 @@ func (a *App) handleFacts(m factsMsg) tea.Cmd {
 	return a.notify(1, "Facts from %s", m.alias)
 }
 
-// appendFacts shows what the host said about itself last time.
-func (a *App) appendFacts(alias string, add func(string), section func(string)) {
+// appendFacts shows what the host said about itself last time, in lines
+// w cells wide.
+func (a *App) appendFacts(alias string, w int, add func(string), section func(string)) {
 	st := a.st
 	section("FACTS")
 	if a.fetching[config.HostKey(alias)] {
@@ -98,17 +101,21 @@ func (a *App) appendFacts(alias string, add func(string), section func(string)) 
 	}
 	switch {
 	case len(f.Disks) > 0:
-		mw := 0
+		// One line each: the mount, then "25% of 4.0 GiB" in a column. A
+		// mount too long for the pane loses its start, since the end is
+		// what tells drives apart.
+		mw, uw := 0, 0
 		for _, d := range f.Disks {
 			mw = max(mw, len([]rune(d.Mount)))
+			uw = max(uw, lipgloss.Width(a.diskUsage(d)))
 		}
-		mw = min(mw, 20)
+		mw = max(6, min(mw, w-11-2-uw))
 		for i, d := range f.Disks {
 			l := label("")
 			if i == 0 {
 				l = label(plural(len(f.Disks), "disk", "disks"))
 			}
-			add(l + fit(st.textS.Render(d.Mount), mw) + "  " + a.usage(d.Used, d.Total))
+			add(l + st.textS.Render(fitLeft(d.Mount, mw)) + "  " + a.diskUsage(d))
 		}
 	case f.DiskTotal > 0: // facts fetched before every drive was listed
 		add(label("disk") + a.usage(f.DiskUsed, f.DiskTotal))
@@ -127,24 +134,51 @@ func (a *App) appendFacts(alias string, add func(string), section func(string)) 
 
 // usage is "1.2 of 3.8 GiB (31%)", coloured as it fills up.
 func (a *App) usage(used, total int64) string {
-	pct := int(used * 100 / max(1, total))
-	style := a.st.textS
-	switch {
-	case pct >= 90:
-		style = a.st.bad
-	case pct >= 75:
-		style = a.st.warn
-	}
-	return style.Render(fmt.Sprintf("%s of %s (%d%%)", kib(used), kib(total), pct))
+	pct := percent(used, total)
+	return a.fillStyle(pct).Render(fmt.Sprintf("%s of %s (%d%%)", kib(used), kib(total), pct))
 }
 
-// kib formats a size given in KiB.
+// diskUsage is the shorter " 31% of 3.8 GiB" a drive's line has room for.
+func (a *App) diskUsage(d remote.Disk) string {
+	pct := percent(d.Used, d.Total)
+	return a.fillStyle(pct).Render(fmt.Sprintf("%3d%% of %s", pct, kib(d.Total)))
+}
+
+func percent(used, total int64) int { return int(used * 100 / max(1, total)) }
+
+// fillStyle colours a usage as it fills up.
+func (a *App) fillStyle(pct int) lipgloss.Style {
+	switch {
+	case pct >= 90:
+		return a.st.bad
+	case pct >= 75:
+		return a.st.warn
+	}
+	return a.st.textS
+}
+
+// fitLeft pads s to w cells, or cuts its start to fit: "…/media files".
+func fitLeft(s string, w int) string {
+	if r := []rune(s); len(r) > w {
+		s = "…" + string(r[len(r)-w+1:])
+	}
+	return s + strings.Repeat(" ", max(0, w-len([]rune(s))))
+}
+
+// kib formats a size given in KiB, with a decimal only below 10: "4.0 GiB",
+// "932 GiB".
 func kib(n int64) string {
+	unit := func(v float64, name string) string {
+		if v < 9.95 {
+			return fmt.Sprintf("%.1f %s", v, name)
+		}
+		return fmt.Sprintf("%.0f %s", v, name)
+	}
 	switch {
 	case n >= 1<<30:
-		return fmt.Sprintf("%.1f TiB", float64(n)/(1<<30))
+		return unit(float64(n)/(1<<30), "TiB")
 	case n >= 1<<20:
-		return fmt.Sprintf("%.1f GiB", float64(n)/(1<<20))
+		return unit(float64(n)/(1<<20), "GiB")
 	case n >= 1<<10:
 		return fmt.Sprintf("%.0f MiB", float64(n)/(1<<10))
 	}
