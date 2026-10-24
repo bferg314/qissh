@@ -96,7 +96,21 @@ func (a *App) appendFacts(alias string, add func(string), section func(string)) 
 	if f.MemTotal > 0 {
 		add(label("memory") + a.usage(f.MemUsed, f.MemTotal))
 	}
-	if f.DiskTotal > 0 {
+	switch {
+	case len(f.Disks) > 0:
+		mw := 0
+		for _, d := range f.Disks {
+			mw = max(mw, len([]rune(d.Mount)))
+		}
+		mw = min(mw, 20)
+		for i, d := range f.Disks {
+			l := label("")
+			if i == 0 {
+				l = label(plural(len(f.Disks), "disk", "disks"))
+			}
+			add(l + fit(st.textS.Render(d.Mount), mw) + "  " + a.usage(d.Used, d.Total))
+		}
+	case f.DiskTotal > 0: // facts fetched before every drive was listed
 		add(label("disk") + a.usage(f.DiskUsed, f.DiskTotal))
 	}
 	switch {

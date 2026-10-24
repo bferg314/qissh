@@ -3,8 +3,11 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -51,6 +54,65 @@ func TestRun(t *testing.T) {
 	f = &fake{err: errors.New("boom")}
 	if r := Run(context.Background(), f, resolve.Options{}, "oak", "true", time.Second); r.Exit != -1 || r.Err.Error() != "boom" {
 		t.Fatalf("%+v", r)
+	}
+}
+
+func TestParseFactsDrives(t *testing.T) {
+	f := ParseFacts("disk=1 2\ndrive=40000 100000 /\r\ndrive=1500000 2000000 /mnt/media files\ndrive=5 0 /empty\n" +
+		"drive=garbage\ndrive=10 20 D: (Games)\n")
+	want := []Disk{{"/", 40000, 100000}, {"/mnt/media files", 1500000, 2000000}, {"D: (Games)", 10, 20}}
+	if !reflect.DeepEqual(f.Disks, want) || f.DiskTotal != 2 {
+		t.Fatalf("%+v", f.Disks)
+	}
+	var many strings.Builder
+	for i := range maxDisks + 5 {
+		fmt.Fprintf(&many, "drive=1 2 /d%d\n", i)
+	}
+	if n := len(ParseFacts(many.String()).Disks); n != maxDisks {
+		t.Fatalf("%d drives kept", n)
+	}
+}
+
+// The script lists real drives from df and leaves out pseudo filesystems,
+// boot and system volumes, and a device mounted twice.
+func TestUnixFactsDrives(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	dir := t.TempDir()
+	df := `#!/bin/sh
+cat <<END
+Filesystem     1024-blocks    Used Available Capacity Mounted on
+/dev/nvme0n1p2      100000   40000     60000      40% /
+tmpfs                 8000       0      8000       0% /run
+/dev/nvme0n1p1         500     100       400      20% /boot/efi
+/dev/nvme0n1p2      100000   40000     60000      40% /home
+/dev/sda1          2000000 1500000    500000      75% /mnt/media files
+/dev/loop3           50000   50000         0     100% /snap/core/1
+overlay             100000   40000     60000      40% /var/lib/docker/overlay2/x/merged
+tank/data           900000  300000    600000      34% /tank/data
+map auto_home            0       0         0     100% /System/Volumes/Data/home
+/dev/disk3s5        500000  200000    400000      34% /System/Volumes/Data
+/dev/disk3s6        500000    1000    400000       1% /System/Volumes/VM
+END
+`
+	if err := os.WriteFile(filepath.Join(dir, "df"), []byte(df), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(sh, "-c", unixFacts)
+	cmd.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	var mounts []string
+	for _, d := range ParseFacts(string(out)).Disks {
+		mounts = append(mounts, d.Mount)
+	}
+	want := []string{"/", "/mnt/media files", "/tank/data", "/System/Volumes/Data"}
+	if !reflect.DeepEqual(mounts, want) {
+		t.Fatalf("drives %q, want %q\n%s", mounts, want, out)
 	}
 }
 
@@ -133,7 +195,7 @@ func TestWindowsFactsRuns(t *testing.T) {
 	args := strings.Fields(FactsCommand(true))[1:]
 	out, err := exec.Command(ps, args...).CombinedOutput()
 	f := ParseFacts(string(out))
-	if err != nil || !f.Windows || f.OS == "" || f.MemTotal == 0 || f.DiskTotal == 0 || f.Uptime == 0 {
+	if err != nil || !f.Windows || f.OS == "" || f.MemTotal == 0 || f.DiskTotal == 0 || len(f.Disks) == 0 || f.Uptime == 0 {
 		t.Fatalf("%v %+v\n%s", err, f, out)
 	}
 }

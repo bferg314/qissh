@@ -118,7 +118,7 @@ In the prompt, `ctrl+s` saves the command as a snippet, `↑`/`↓` pick a saved
 
 ### Facts
 
-`i` asks the host (or every selected host) about itself with one ssh command: OS, kernel and architecture, uptime, load, memory, disk use of `/` (or `C:`), pending package updates and whether a reboot is needed. Updates are counted from what the package manager already knows (`apt-get -s`, `dnf --cacheonly`, `pacman -Qu`), so nothing is downloaded and nothing needs root. Windows hosts, as Tailscale reports them, are asked with PowerShell. Facts appear in the detail pane and are kept in `facts.json` in the cache folder, so you see the last ones (and how old they are) next time.
+`i` asks the host (or every selected host) about itself with one ssh command: OS, kernel and architecture, uptime, load, memory, the use of every local drive (each mounted filesystem, or each fixed and removable drive letter on Windows, leaving out pseudo filesystems such as tmpfs and snap images), pending package updates and whether a reboot is needed. Updates are counted from what the package manager already knows (`apt-get -s`, `dnf --cacheonly`, `pacman -Qu`), so nothing is downloaded and nothing needs root. Windows hosts, as Tailscale reports them, are asked with PowerShell. Facts appear in the detail pane and are kept in `facts.json` in the cache folder, so you see the last ones (and how old they are) next time.
 
 ### Tunnels
 

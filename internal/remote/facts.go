@@ -31,12 +31,25 @@ type Facts struct {
 	MemTotal  int64 `json:"mem_total,omitempty"`
 	DiskUsed  int64 `json:"disk_used,omitempty"`
 	DiskTotal int64 `json:"disk_total,omitempty"`
+	// Disks is every local drive, the root or C: among them. Facts from
+	// before it existed have only DiskUsed and DiskTotal.
+	Disks []Disk `json:"disks,omitempty"`
 	// Updates is the number of pending package updates, -1 when unknown.
 	Updates int    `json:"updates"`
 	Reboot  bool   `json:"reboot,omitempty"` // a reboot is pending
 	Windows bool   `json:"windows,omitempty"`
 	Err     string `json:"err,omitempty"`
 }
+
+// Disk is one drive's use, in KiB.
+type Disk struct {
+	Mount string `json:"mount"` // "/", "/mnt/data", or "D:" with its label: "D: (Games)"
+	Used  int64  `json:"used"`
+	Total int64  `json:"total"`
+}
+
+// maxDisks is how many drives are kept; the rest of a long list is dropped.
+const maxDisks = 16
 
 // unixFacts prints key=value lines. It reads only what's available
 // without root and without the network (apt-get -s, dnf --cacheonly,
@@ -54,6 +67,12 @@ if [ -r /proc/loadavg ]; then read l1 l5 l15 _ < /proc/loadavg; echo "load=$l1 $
 else echo "load=$(sysctl -n vm.loadavg 2>/dev/null | tr -d "{}" | awk "{print \$1, \$2, \$3}")"; fi
 [ -r /proc/meminfo ] && awk "/^MemTotal:/{t=\$2} /^MemAvailable:/{a=\$2} END{print \"mem=\" t-a \" \" t}" /proc/meminfo
 df -Pk / 2>/dev/null | awk "NR==2{print \"disk=\" \$3 \" \" \$2}"
+{ df -Pkl 2>/dev/null || df -Pk 2>/dev/null; } | tail -n +2 | { seen=" "; while read fs size used avail cap mnt; do
+case "$size" in ""|0|*[!0-9]*) continue;; esac
+case "$fs" in tmpfs|devtmpfs|udev|none|overlay|shm|efivarfs|squashfs|devfs|/dev/loop*) continue;; esac
+case "$mnt" in /System/Volumes/Data) ;; /boot|/boot/*|/System/Volumes/*|/private/var/vm|/snap/*|/var/lib/docker/*) continue;; esac
+case "$seen" in *" $fs "*) continue;; esac
+seen="$seen$fs "; echo "drive=$used $size $mnt"; done; }
 if command -v apt-get >/dev/null 2>&1; then echo "updates=$(apt-get -s -o Debug::NoLocking=1 upgrade 2>/dev/null | grep -c ^Inst)"
 elif command -v dnf >/dev/null 2>&1; then echo "updates=$(dnf -q --cacheonly check-update 2>/dev/null | grep -c "^[A-Za-z0-9]")"
 elif command -v pacman >/dev/null 2>&1; then echo "updates=$(pacman -Qu 2>/dev/null | wc -l)"; fi
@@ -72,6 +91,13 @@ $o = Get-CimInstance Win32_OperatingSystem
 "mem=" + ($o.TotalVisibleMemorySize - $o.FreePhysicalMemory) + " " + $o.TotalVisibleMemorySize
 $d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
 "disk=" + [int64](($d.Size - $d.FreeSpace) / 1024) + " " + [int64]($d.Size / 1024)
+foreach ($d in Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2 OR DriveType=3") {
+  if ($d.Size -gt 0) {
+    $m = $d.DeviceID
+    if ($d.VolumeName) { $m += " (" + $d.VolumeName + ")" }
+    "drive=" + [int64](($d.Size - $d.FreeSpace) / 1024) + " " + [int64]($d.Size / 1024) + " " + $m
+  }
+}
 if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired') { "reboot=yes" }
 `
 
@@ -136,6 +162,17 @@ func ParseFacts(out string) Facts {
 			f.MemUsed, f.MemTotal = two(v)
 		case "disk":
 			f.DiskUsed, f.DiskTotal = two(v)
+		case "drive":
+			// used total mount; the mount may hold spaces.
+			fs := strings.SplitN(v, " ", 3)
+			if len(fs) < 3 || len(f.Disks) >= maxDisks {
+				continue
+			}
+			used, _ := strconv.ParseInt(fs[0], 10, 64)
+			total, _ := strconv.ParseInt(fs[1], 10, 64)
+			if total > 0 && fs[2] != "" {
+				f.Disks = append(f.Disks, Disk{Mount: fs[2], Used: used, Total: total})
+			}
 		case "updates":
 			if n, err := strconv.Atoi(v); err == nil {
 				f.Updates = n
