@@ -3,9 +3,11 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/qissh/internal/config"
 	"github.com/bferg314/qissh/internal/remote"
@@ -53,8 +55,9 @@ func (a *App) handleFacts(m factsMsg) tea.Cmd {
 	return a.notify(1, "Facts from %s", m.alias)
 }
 
-// appendFacts shows what the host said about itself last time.
-func (a *App) appendFacts(alias string, add func(string), section func(string)) {
+// appendFacts shows what the host said about itself last time, in lines
+// w cells wide.
+func (a *App) appendFacts(alias string, w int, add func(string), section func(string)) {
 	st := a.st
 	section("FACTS")
 	if a.fetching[config.HostKey(alias)] {
@@ -96,7 +99,27 @@ func (a *App) appendFacts(alias string, add func(string), section func(string)) 
 	if f.MemTotal > 0 {
 		add(label("memory") + a.usage(f.MemUsed, f.MemTotal))
 	}
-	if f.DiskTotal > 0 {
+	switch {
+	case len(f.Disks) > 0:
+		// One line each: the mount, then "442/460 GiB  96%" in columns. A
+		// mount too long for the pane loses its start, since the end is
+		// what tells drives apart.
+		mw, rw := 0, 0
+		for _, d := range f.Disks {
+			mw = max(mw, len([]rune(d.Mount)))
+			rw = max(rw, len(ratio(d.Used, d.Total)))
+		}
+		mw = max(6, min(mw, w-11-2-rw-5))
+		for i, d := range f.Disks {
+			l := label("")
+			if i == 0 {
+				l = label(plural(len(f.Disks), "disk", "disks"))
+			}
+			pct := percent(d.Used, d.Total)
+			add(l + st.textS.Render(fitLeft(d.Mount, mw)) + "  " +
+				a.fillStyle(pct).Render(fmt.Sprintf("%-*s %3d%%", rw, ratio(d.Used, d.Total), pct)))
+		}
+	case f.DiskTotal > 0: // facts fetched before every drive was listed
 		add(label("disk") + a.usage(f.DiskUsed, f.DiskTotal))
 	}
 	switch {
@@ -111,30 +134,68 @@ func (a *App) appendFacts(alias string, add func(string), section func(string)) 
 	add(st.faintText.Render("as of " + ago(f.At) + " · i refreshes"))
 }
 
-// usage is "1.2 of 3.8 GiB (31%)", coloured as it fills up.
+// usage is "1.2/3.8 GiB  31%", coloured as it fills up.
 func (a *App) usage(used, total int64) string {
-	pct := int(used * 100 / max(1, total))
-	style := a.st.textS
-	switch {
-	case pct >= 90:
-		style = a.st.bad
-	case pct >= 75:
-		style = a.st.warn
-	}
-	return style.Render(fmt.Sprintf("%s of %s (%d%%)", kib(used), kib(total), pct))
+	pct := percent(used, total)
+	return a.fillStyle(pct).Render(fmt.Sprintf("%s  %d%%", ratio(used, total), pct))
 }
 
-// kib formats a size given in KiB.
+// ratio is used over total in total's unit, "442/460 GiB", or with a unit
+// each when used is less than one of total's: "12 MiB/4.0 TiB".
+func ratio(used, total int64) string {
+	div, unit := sizeUnit(total)
+	if float64(used) < div {
+		return kib(used) + "/" + kib(total)
+	}
+	return sizeNum(float64(used)/div) + "/" + sizeNum(float64(total)/div) + " " + unit
+}
+
+func percent(used, total int64) int { return int(used * 100 / max(1, total)) }
+
+// fillStyle colours a usage as it fills up.
+func (a *App) fillStyle(pct int) lipgloss.Style {
+	switch {
+	case pct >= 90:
+		return a.st.bad
+	case pct >= 75:
+		return a.st.warn
+	}
+	return a.st.textS
+}
+
+// fitLeft pads s to w cells, or cuts its start to fit: "…/media files".
+func fitLeft(s string, w int) string {
+	if r := []rune(s); len(r) > w {
+		s = "…" + string(r[len(r)-w+1:])
+	}
+	return s + strings.Repeat(" ", max(0, w-len([]rune(s))))
+}
+
+// kib formats a size given in KiB: "4.0 GiB", "932 GiB".
 func kib(n int64) string {
+	div, unit := sizeUnit(n)
+	return sizeNum(float64(n)/div) + " " + unit
+}
+
+// sizeUnit is the unit for a size in KiB, and how many KiB it holds.
+func sizeUnit(n int64) (float64, string) {
 	switch {
 	case n >= 1<<30:
-		return fmt.Sprintf("%.1f TiB", float64(n)/(1<<30))
+		return 1 << 30, "TiB"
 	case n >= 1<<20:
-		return fmt.Sprintf("%.1f GiB", float64(n)/(1<<20))
+		return 1 << 20, "GiB"
 	case n >= 1<<10:
-		return fmt.Sprintf("%.0f MiB", float64(n)/(1<<10))
+		return 1 << 10, "MiB"
 	}
-	return fmt.Sprintf("%d KiB", n)
+	return 1, "KiB"
+}
+
+// sizeNum has a decimal only below 10: "4.0", "932".
+func sizeNum(v float64) string {
+	if v < 9.95 {
+		return fmt.Sprintf("%.1f", v)
+	}
+	return fmt.Sprintf("%.0f", v)
 }
 
 // duration is "3d 4h", "5h 12m" or "12m".

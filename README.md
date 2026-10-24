@@ -106,7 +106,7 @@ From the shell, `qs check` prints the same status for every host (or the ones yo
 
 ### Detail pane
 
-On terminals at least 100 columns wide, a pane beside the list shows the selected host's hostname, user, port, key, jump host and port forwards. Any value that doesn't come from the host's own block says where it does come from, such as `from Host *`, `from line 27` (another block for the same host) or `default` (ssh's built-in value). Below that are the host's tunnels and facts, your connection history, the file and line that define the host, and the block as written. `d` hides the pane, or on narrower terminals shows it full screen. `J`/`K` scroll it.
+On terminals at least 100 columns wide, a pane beside the list shows the selected host's hostname, user, port, key, jump host and port forwards. Any value that doesn't come from the host's own block says where it does come from, such as `from Host *`, `from line 27` (another block for the same host) or `default` (ssh's built-in value). Below that are the host's tunnels and facts, your connection history, the file and line that define the host, and the block as written. `d` cycles the pane through beside the list, hidden and full screen (`esc` leaves full screen); narrower terminals have no room beside the list, so there `d` switches between hidden and full screen. `J`/`K` scroll it.
 
 Press `?` for every key. `tab` and `←`/`→` (or `1`–`4`) switch tabs.
 
@@ -118,7 +118,7 @@ In the prompt, `ctrl+s` saves the command as a snippet, `↑`/`↓` pick a saved
 
 ### Facts
 
-`i` asks the host (or every selected host) about itself with one ssh command: OS, kernel and architecture, uptime, load, memory, disk use of `/` (or `C:`), pending package updates and whether a reboot is needed. Updates are counted from what the package manager already knows (`apt-get -s`, `dnf --cacheonly`, `pacman -Qu`), so nothing is downloaded and nothing needs root. Windows hosts, as Tailscale reports them, are asked with PowerShell. Facts appear in the detail pane and are kept in `facts.json` in the cache folder, so you see the last ones (and how old they are) next time.
+`i` asks the host (or every selected host) about itself with one ssh command: OS, kernel and architecture, uptime, load, memory, the use of every local drive, one line each with long names shortened from the start (each mounted filesystem, or each fixed and removable drive letter on Windows, leaving out pseudo filesystems such as tmpfs and snap images), pending package updates and whether a reboot is needed. Updates are counted from what the package manager already knows (`apt-get -s`, `dnf --cacheonly`, `pacman -Qu`), so nothing is downloaded and nothing needs root. Windows hosts, as Tailscale reports them, are asked with PowerShell. Facts appear in the detail pane and are kept in `facts.json` in the cache folder, so you see the last ones (and how old they are) next time.
 
 ### Tunnels
 

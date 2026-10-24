@@ -16,9 +16,19 @@ import (
 	"github.com/bferg314/qissh/internal/sshconfig"
 )
 
-// Below this width the pane can't sit beside the list; d then shows it
-// full screen instead.
+// Below this width the pane can't sit beside the list; d then switches
+// between hidden and full screen.
 const sidePaneMinWidth = 100
+
+// detailMode is the pane's chosen view, which d cycles through: beside
+// the list, hidden, full screen.
+type detailMode int
+
+const (
+	paneSide detailMode = iota // the default
+	paneHidden
+	paneFull
+)
 
 type detailLayout int
 
@@ -29,8 +39,7 @@ const (
 )
 
 type detailState struct {
-	show bool // side pane enabled (wide terminals)
-	full bool // full-screen pane (narrow terminals)
+	mode detailMode
 
 	// Scrolling. scroll resets when a different row is selected
 	// (scrollKey). maxScroll and bodyH are recorded at render time for the
@@ -45,19 +54,25 @@ func (a *App) detailLayout() detailLayout {
 	switch {
 	case a.tab != tabHosts:
 		return layoutNone
-	case a.w >= sidePaneMinWidth && a.detail.show:
-		return layoutSide
-	case a.w < sidePaneMinWidth && a.detail.full:
+	case a.detail.mode == paneFull:
 		return layoutFull
+	case a.detail.mode == paneSide && a.w >= sidePaneMinWidth:
+		return layoutSide
 	}
 	return layoutNone
 }
 
-func (a *App) toggleDetails() {
-	if a.w >= sidePaneMinWidth {
-		a.detail.show = !a.detail.show
-	} else {
-		a.detail.full = !a.detail.full
+// cycleDetails moves the pane to its next view: beside the list, hidden,
+// full screen. Narrow terminals have no room beside the list, so there
+// it's hidden or full screen.
+func (a *App) cycleDetails() {
+	switch {
+	case a.detail.mode == paneFull && a.w < sidePaneMinWidth:
+		a.detail.mode = paneHidden
+	case a.detail.mode == paneSide && a.w < sidePaneMinWidth:
+		a.detail.mode = paneFull
+	default:
+		a.detail.mode = (a.detail.mode + 1) % 3
 	}
 }
 
@@ -173,7 +188,7 @@ func (a *App) renderDetail(w, h int, border bool) string {
 			a.appendConnection(h, res, add, section)
 		}
 		a.appendTunnels(h.Alias, add, section)
-		a.appendFacts(h.Alias, add, section)
+		a.appendFacts(h.Alias, cw, add, section)
 		a.appendHistory(h, add, section)
 		a.appendSource(h.Location, h, add, section)
 	}

@@ -58,7 +58,7 @@ func (a *App) renderHelp() string {
 		row("n", "new host"),
 		row("e", "edit the host, or delete it"),
 		row("E", "edit its block in your editor"),
-		row("d", "show / hide the detail pane"),
+		row("d", "detail pane: beside · hidden · full"),
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
 		row("t", "check login (fixes changed host keys)"),
 		row("C", "copy one of your keys to the host"),

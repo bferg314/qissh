@@ -307,7 +307,7 @@ func (a *App) hostsKey(key string) tea.Cmd {
 		a.loadSSH()
 		return tea.Batch(a.resolveAll(), a.loadTailscale(), a.notify(0, "Reloaded %s and checking hosts", config.TildePath(a.ssh.Path)))
 	case "d":
-		a.toggleDetails()
+		a.cycleDetails()
 	case "y":
 		return a.copyCurrent()
 	case "t":
