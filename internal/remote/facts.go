@@ -55,7 +55,9 @@ const maxDisks = 16
 // (simulator runtimes, mounted .dmg files: hdiutil info) are left out,
 // and APFS volumes that share a container, so have the same size and
 // free space, count once as size less free space: the sealed / volume's
-// own Used is a few GiB however full the disk is.
+// own Used is a few GiB however full the disk is. Memory used there is
+// what Activity Monitor calls Memory Used: app memory (anonymous pages
+// less purgeable ones), wired and compressed.
 //
 // It reads only what's available without root and without the network
 // (apt-get -s, dnf --cacheonly, pacman -Qu). It contains no single
@@ -70,7 +72,8 @@ if [ -r /proc/uptime ]; then read u _ < /proc/uptime; echo "uptime=${u%.*}"
 else b=$(sysctl -n kern.boottime 2>/dev/null | sed -n "s/^{ sec = \([0-9]*\).*/\1/p"); [ -n "$b" ] && echo "uptime=$(( $(date +%s) - b ))"; fi
 if [ -r /proc/loadavg ]; then read l1 l5 l15 _ < /proc/loadavg; echo "load=$l1 $l5 $l15"
 else set -- $(sysctl -n vm.loadavg 2>/dev/null | tr -d "{}"); [ $# -ge 3 ] && echo "load=$1 $2 $3"; fi
-[ -r /proc/meminfo ] && awk "/^MemTotal:/{t=\$2} /^MemAvailable:/{a=\$2} END{print \"mem=\" t-a \" \" t}" /proc/meminfo
+if [ -r /proc/meminfo ]; then awk "/^MemTotal:/{t=\$2} /^MemAvailable:/{a=\$2} END{print \"mem=\" t-a \" \" t}" /proc/meminfo
+elif command -v vm_stat >/dev/null 2>&1; then t=$(sysctl -n hw.memsize 2>/dev/null); vm_stat | awk -v t="$t" "/page size of/{p=\$8} /^Pages active:/{x=\$3} /^Anonymous pages:/{a=\$3} /^Pages purgeable:/{g=\$3} /^Pages wired down:/{w=\$4} /^Pages occupied by compressor:/{c=\$5} END{if (!a) {a=x; g=0}; if (p && t) print \"mem=\" int((a-g+w+c)*p/1024) \" \" int(t/1024)}"; fi
 mac=; [ "$(uname -s)" = Darwin ] && mac=1
 if [ -n "$mac" ]; then df -Pk / 2>/dev/null | awk "NR==2{print \"disk=\" \$2-\$4 \" \" \$2}"
 else df -Pk / 2>/dev/null | awk "NR==2{print \"disk=\" \$3 \" \" \$2}"; fi

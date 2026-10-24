@@ -110,7 +110,7 @@ func TestFacts(t *testing.T) {
 	runCmd(a, cmd)
 	s := screen(a)
 	for _, want := range []string{"FACTS", "Debian GNU/Linux 12 (bookworm)", "Linux 6.1.0 · aarch64", "3d 4h", "0.10 0.20 0.30  (4 cpus)",
-		"3.3 GiB of 3.8 GiB (87%)", "10 GiB of 30 GiB (33%)", "7 pending", "reboot", "needed"} {
+		"3.3/3.8 GiB  87%", "10/30 GiB  33%", "7 pending", "reboot", "needed"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("facts lack %q:\n%s", want, s)
 		}
