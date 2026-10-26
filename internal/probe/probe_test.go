@@ -29,13 +29,52 @@ func TestDial(t *testing.T) {
 	}
 }
 
+// fakeLookup makes name lookups answer with addrs or err after delay.
+func fakeLookup(t *testing.T, delay time.Duration, addrs []string, err error) {
+	t.Helper()
+	old := lookupHost
+	lookupHost = func(ctx context.Context, host string) ([]string, error) {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return addrs, err
+	}
+	t.Cleanup(func() { lookupHost = old })
+}
+
+func TestDialSlowLookup(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+	// The lookup takes longer than the connect timeout; the host is still up.
+	fakeLookup(t, 100*time.Millisecond, []string{"127.0.0.1"}, nil)
+	if r := Dial(context.Background(), "oak", port, 20*time.Millisecond); !r.Up || r.Err != "" || r.Addr != "127.0.0.1" || r.Stale {
+		t.Fatalf("slow lookup: %+v", r)
+	}
+	// A failed lookup falls back to the last answer.
+	fakeLookup(t, 0, nil, errors.New("lookup oak: no such host"))
+	if r := Dial(context.Background(), "oak", port, time.Second); !r.Up || r.Addr != "127.0.0.1" || !r.Stale {
+		t.Fatalf("failed lookup after a good one: %+v", r)
+	}
+	if r := Dial(context.Background(), "pine", port, time.Second); r.Up || r.Err != "no dns" {
+		t.Fatalf("failed lookup, never resolved: %+v", r)
+	}
+}
+
 func TestShortNetErr(t *testing.T) {
 	cases := map[string]string{
 		"dial tcp 10.0.0.1:22: connectex: No connection could be made because the target machine actively refused it.": "refused",
 		"dial tcp 10.0.0.1:22: i/o timeout":                     "timeout",
+		"lookup oak: i/o timeout":                               "slow dns",
+		"dial tcp: lookup oak: i/o timeout":                     "slow dns",
 		"dial tcp: lookup nope.lan: no such host":               "no dns",
 		"dial tcp 10.9.9.9:22: connect: network is unreachable": "unreachable",
-		"something else": "down",
+		"something else":                                        "down",
 	}
 	for in, want := range cases {
 		if got := ShortNetErr(errors.New(in)); got != want {

@@ -33,6 +33,24 @@ func TestStatusColumn(t *testing.T) {
 	}
 }
 
+func TestStatusAddress(t *testing.T) {
+	a := newTestApp(t, 130, 40).a
+	a.hosts.focus("oak")
+	reach(a, "oak", probe.Reach{Up: true, Latency: 3 * time.Millisecond, At: time.Now(), Addr: "100.64.0.7"})
+	if s := screen(a); !strings.Contains(s, "address    100.64.0.7") || strings.Contains(s, "earlier") {
+		t.Fatalf("resolved address:\n%s", s)
+	}
+	reach(a, "oak", probe.Reach{Up: true, At: time.Now(), Addr: "100.64.0.7", Stale: true})
+	if s := screen(a); !strings.Contains(s, "from an earlier lookup") {
+		t.Fatalf("stale address:\n%s", s)
+	}
+	// Nothing to add when HostName is the address itself.
+	reach(a, "oak", probe.Reach{Up: true, At: time.Now(), Addr: "oak.example.ts.net"})
+	if s := screen(a); strings.Contains(s, "address ") {
+		t.Fatalf("HostName repeated:\n%s", s)
+	}
+}
+
 func TestCheckAllSkipsJumpHosts(t *testing.T) {
 	a := newTestApp(t, 120, 30).a
 	cmd := a.checkAll()
