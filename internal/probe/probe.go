@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bferg314/qissh/internal/resolve"
@@ -20,35 +21,85 @@ import (
 type Reach struct {
 	Up      bool
 	Latency time.Duration
-	Err     string // short: "refused", "timeout", "no dns", "unreachable", or ssh's words
+	Err     string // short: "refused", "timeout", "no dns", "slow dns", "unreachable", or ssh's words
 	At      time.Time
+	// Addr is the address the name resolved to: the one that answered, or
+	// else the last one tried. Empty when the lookup failed.
+	Addr string
+	// Stale is set when the lookup failed and Addr comes from an earlier one.
+	Stale bool
 }
 
-// Dial connects to host:port and hangs up.
+// lookupTimeout is how long Dial waits for a name to resolve. It's apart
+// from the connect timeout: a bare name that DNS doesn't know falls back to
+// LLMNR or mDNS, which can take seconds on Windows, but ssh still waits for it.
+const lookupTimeout = 10 * time.Second
+
+// lookupHost resolves a name; tests replace it.
+var lookupHost = net.DefaultResolver.LookupHost
+
+// lastAddrs holds each name's last good lookup, used when a lookup fails:
+// multicast name lookups don't always answer.
+var lastAddrs sync.Map // host → []string
+
+// Dial resolves host, connects to its port and hangs up. The timeout is
+// for the connect, not the lookup.
 func Dial(ctx context.Context, host string, port int, timeout time.Duration) Reach {
 	if port == 0 {
 		port = 22
 	}
+	addrs, stale, err := lookup(ctx, host)
+	if err != nil {
+		return Reach{Err: ShortNetErr(err), At: time.Now()}
+	}
 	d := net.Dialer{Timeout: timeout}
 	start := time.Now()
-	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
-	r := Reach{At: time.Now()}
-	if err != nil {
-		r.Err = ShortNetErr(err)
-		return r
+	r := Reach{Stale: stale}
+	for _, addr := range addrs {
+		r.Addr = addr
+		var conn net.Conn
+		conn, err = d.DialContext(ctx, "tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
+		if err == nil {
+			conn.Close()
+			r.Up, r.Latency, r.At = true, time.Since(start), time.Now()
+			return r
+		}
 	}
-	conn.Close()
-	r.Up, r.Latency = true, time.Since(start)
+	r.Err, r.At = ShortNetErr(err), time.Now()
 	return r
+}
+
+// lookup resolves host, falling back to its last good answer (stale).
+func lookup(ctx context.Context, host string) (addrs []string, stale bool, err error) {
+	if net.ParseIP(host) != nil {
+		return []string{host}, false, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, lookupTimeout)
+	defer cancel()
+	addrs, err = lookupHost(ctx, host)
+	if err == nil && len(addrs) > 0 {
+		lastAddrs.Store(host, addrs)
+		return addrs, false, nil
+	}
+	if old, ok := lastAddrs.Load(host); ok {
+		return old.([]string), true, nil
+	}
+	if err == nil {
+		err = errors.New("lookup " + host + ": no such host")
+	}
+	return nil, false, err
 }
 
 // ShortNetErr names a connection error in a word or two.
 func ShortNetErr(err error) string {
 	s := strings.ToLower(err.Error())
+	timeout := strings.Contains(s, "timeout") || strings.Contains(s, "timed out") || strings.Contains(s, "deadline exceeded")
 	switch {
 	case strings.Contains(s, "refused"):
 		return "refused"
-	case strings.Contains(s, "timeout"), strings.Contains(s, "timed out"):
+	case strings.Contains(s, "lookup ") && timeout:
+		return "slow dns"
+	case timeout:
 		return "timeout"
 	case strings.Contains(s, "no such host"), strings.Contains(s, "could not resolve"), strings.Contains(s, "name or service not known"):
 		return "no dns"

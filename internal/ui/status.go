@@ -334,6 +334,17 @@ func (a *App) appendStatus(h *sshconfig.Host, add func(string), section func(str
 	}
 	add(label("reachable") + reach)
 
+	// The address the check reached, when HostName is a name rather than one.
+	if r, ok := a.checks.reach[k]; ok && r.Addr != "" {
+		if res := a.res(h.Alias); res == nil || res.HostName != r.Addr {
+			line := st.dim.Render(r.Addr)
+			if r.Stale {
+				line += st.faintText.Render("  from an earlier lookup")
+			}
+			add(label("address") + line)
+		}
+	}
+
 	if p := a.peer(h); p != nil {
 		line := st.ok.Render("online")
 		if !p.Online {
