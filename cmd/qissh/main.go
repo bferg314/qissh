@@ -163,17 +163,8 @@ func runMain(query, cmdFile string) error {
 	if err != nil {
 		return err
 	}
-	viaShell := s.cfg.ConnectMode == config.ConnectShell && cmdFile != ""
-
-	if query != "" {
-		alias, err := pick(s, query)
-		if err != nil {
-			return err
-		}
-		if alias != "" {
-			_ = s.hist.Record(alias)
-			return finish(ui.Outcome{Argv: ui.SSHArgv(s.cfg, alias), ViaShell: viaShell}, cmdFile)
-		}
+	if done, err := connectNow(s, query, cmdFile); done || err != nil {
+		return err
 	}
 
 	app := ui.New(ui.Options{
@@ -190,6 +181,21 @@ func runMain(query, cmdFile string) error {
 		return err
 	}
 	return finish(app.Outcome(), cmdFile)
+}
+
+// connectNow connects when query picks one host, recording it in the
+// history. It reports false when the dashboard should open instead.
+func connectNow(s *setup, query, cmdFile string) (bool, error) {
+	if query == "" {
+		return false, nil
+	}
+	alias, err := pick(s, query)
+	if err != nil || alias == "" {
+		return false, err
+	}
+	_ = s.hist.Record(alias)
+	viaShell := s.cfg.ConnectMode == config.ConnectShell && cmdFile != ""
+	return true, finish(ui.Outcome{Argv: ui.SSHArgv(s.cfg, alias), ViaShell: viaShell}, cmdFile)
 }
 
 // runDoctor prints the config doctor's findings and fails when there's
