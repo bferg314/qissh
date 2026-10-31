@@ -34,6 +34,9 @@ const keepBackups = 10
 //     Windows checks), and validate runs once more on the real path; if
 //     that fails the old content is put back.
 //
+// A symlinked file is written where the link points, and the link is
+// left as it is.
+//
 // It returns the path of the backup in backupDir ("" for a new file).
 func Save(f *File, validate Validator, backupDir string) (backup string, err error) {
 	old, err := os.ReadFile(f.Path)
@@ -45,15 +48,24 @@ func Save(f *File, validate Validator, backupDir string) (backup string, err err
 		return "", ErrChanged
 	}
 
-	dir := filepath.Dir(f.Path)
+	// When the config is a symlink (into a dotfiles repo, say), write the
+	// file it points to, so the link stays a link.
+	target := f.Path
+	if exists {
+		if target, err = filepath.EvalSymlinks(f.Path); err != nil {
+			return "", err
+		}
+	}
+
+	dir := filepath.Dir(target)
 	mode := os.FileMode(0o600)
-	if fi, err := os.Stat(f.Path); err == nil {
+	if fi, err := os.Stat(target); err == nil {
 		mode = fi.Mode().Perm()
 	} else if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
 
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(f.Path)+".qs-*")
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(target)+".qs-*")
 	if err != nil {
 		return "", err
 	}
@@ -75,7 +87,7 @@ func Save(f *File, validate Validator, backupDir string) (backup string, err err
 		}
 		_ = os.WriteFile(f.Path+".qs-bak", old, mode)
 	}
-	if err := os.Rename(tmpPath, f.Path); err != nil {
+	if err := os.Rename(tmpPath, target); err != nil {
 		return backup, err
 	}
 	if validate != nil {
