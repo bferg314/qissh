@@ -71,9 +71,9 @@ type FieldError struct {
 func (e *FieldError) Error() string { return e.Msg }
 
 // Check finds the first field qissh wouldn't write: an alias that's empty,
-// has spaces or quotes, or is a pattern; spaces in a value; a port that
-// isn't 1 to 65535. Whether the alias is already taken is the caller's to
-// check.
+// has spaces or quotes, starts with - or is a pattern; spaces in a value;
+// a port that isn't 1 to 65535. Whether the alias is already taken is the
+// caller's to check.
 func (h HostFields) Check() *FieldError {
 	bad := func(f Field, msg string) *FieldError { return &FieldError{f, msg} }
 	switch {
@@ -81,6 +81,8 @@ func (h HostFields) Check() *FieldError {
 		return bad(FieldAlias, "Give the host an alias")
 	case strings.ContainsAny(h.Alias, " \t\"'#"):
 		return bad(FieldAlias, "An alias can't contain spaces, quotes or #")
+	case strings.HasPrefix(h.Alias, "-"):
+		return bad(FieldAlias, "An alias can't start with - (ssh would read it as an option)")
 	case IsPattern(h.Alias):
 		return bad(FieldAlias, "An alias can't contain * ? or start with ! (those make a pattern)")
 	case strings.ContainsAny(h.HostName, " \t"):

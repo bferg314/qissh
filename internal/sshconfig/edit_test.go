@@ -202,6 +202,33 @@ func TestSaveNewFile(t *testing.T) {
 	}
 }
 
+func TestSaveThroughSymlink(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "dotfiles", "config")
+	writeFile(t, real, editBase)
+	link := filepath.Join(dir, "config")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("can't make a symlink here: %v", err)
+	}
+	data, _ := os.ReadFile(link)
+	f := Parse(link, data)
+	f.AddHost(HostFields{Alias: "n", HostName: "n.lan"})
+	if _, err := Save(f, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil {
+		t.Fatal(err)
+	} else if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the link should still be a link, not %v", fi.Mode())
+	}
+	if got, _ := os.ReadFile(real); !strings.Contains(string(got), "Host n\n") {
+		t.Fatalf("the file the link points to should be written:\n%s", got)
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(real)); len(entries) != 1 {
+		t.Fatalf("no temp files left behind: %v", entries)
+	}
+}
+
 func TestBackupsArePruned(t *testing.T) {
 	dir := t.TempDir()
 	for range keepBackups + 3 {
@@ -248,6 +275,7 @@ func TestCheckFields(t *testing.T) {
 		{HostFields{Alias: "my box"}, FieldAlias, "spaces"},
 		{HostFields{Alias: "web*"}, FieldAlias, "pattern"},
 		{HostFields{Alias: "!x"}, FieldAlias, "pattern"},
+		{HostFields{Alias: "-oProxyCommand=x"}, FieldAlias, "start with -"},
 		{HostFields{Alias: "a", HostName: "h h"}, FieldHostName, "hostname"},
 		{HostFields{Alias: "a", User: "u u"}, FieldUser, "user"},
 		{HostFields{Alias: "a", Port: "0"}, FieldPort, "Port"},
